@@ -1,0 +1,86 @@
+classDiagram
+    direction LR
+
+    class Portfolio {
+        +int id
+        +string name
+        +datetime created_at
+        +datetime updated_at
+    }
+
+    class Asset {
+        +int id
+        +string symbol
+        +string name
+        +AssetType asset_type
+        +string currency
+    }
+
+    class AssetType {
+        <<enumeration>>
+        STOCK
+        BOND
+        CASH
+    }
+
+    class Holding {
+        +int id
+        +int portfolio_id
+        +int asset_id
+        +float quantity
+        +float average_purchase_price
+        +datetime added_at
+        +datetime updated_at
+    }
+
+    class PortfolioService {
+        +get_portfolio_summary()
+        +list_holdings()
+        +add_holding()
+        +update_holding()
+        +remove_holding()
+    }
+
+    class PerformanceService {
+        +calculate_cost_basis()
+        +calculate_current_value()
+        +calculate_gain_loss()
+        +calculate_gain_loss_percentage()
+        +calculate_allocation()
+    }
+
+    class MarketDataService {
+        +get_current_price(symbol)
+        +validate_symbol(symbol)
+    }
+
+    class PortfolioRepository {
+        +find_default()
+        +save(portfolio)
+    }
+
+    class AssetRepository {
+        +find_by_symbol(symbol)
+        +save(asset)
+    }
+
+    class HoldingRepository {
+        +find_all()
+        +find_by_id(id)
+        +save(holding)
+        +delete(id)
+    }
+
+    Portfolio "1" o-- "0..*" Holding : contains
+    Asset "1" <-- "0..*" Holding : represents
+    Asset --> AssetType
+
+    PortfolioService --> PortfolioRepository
+    PortfolioService --> AssetRepository
+    PortfolioService --> HoldingRepository
+
+    PerformanceService --> HoldingRepository
+    PerformanceService --> MarketDataService
+
+
+

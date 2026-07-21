@@ -17,7 +17,7 @@ erDiagram
         DATETIME created_at
     }
 
-    TRADE {
+    HOLDING {
         UUID id PK
         UUID portfolio_id FK
         UUID asset_id FK
@@ -29,5 +29,5 @@ erDiagram
         DATETIME created_at
     }
 
-    PORTFOLIO ||--o{ TRADE : records
-    ASSET ||--o{ TRADE : traded
+    PORTFOLIO ||--o{ HOLDING : records
+    ASSET ||--o{ HOLDING : traded

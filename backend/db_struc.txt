@@ -1,0 +1,33 @@
+
+erDiagram
+    PORTFOLIO {
+        UUID id PK
+        VARCHAR name
+        VARCHAR base_currency
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    ASSET {
+        UUID id PK
+        VARCHAR ticker
+        VARCHAR name
+        VARCHAR asset_type
+        VARCHAR currency
+        DATETIME created_at
+    }
+
+    TRADE {
+        UUID id PK
+        UUID portfolio_id FK
+        UUID asset_id FK
+        VARCHAR trade_type
+        DECIMAL quantity
+        DECIMAL price_per_unit
+        DECIMAL fee_amount
+        DATETIME traded_at
+        DATETIME created_at
+    }
+
+    PORTFOLIO ||--o{ TRADE : records
+    ASSET ||--o{ TRADE : traded

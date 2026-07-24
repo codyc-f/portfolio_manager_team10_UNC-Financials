@@ -10,6 +10,45 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  db-init:
+    build:
+      context: ./backend
+    environment: &backend-environment
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: devpassword
+      MYSQL_DATABASE: portfolio_manager
+    command: ["python", "create_portfolio_table.py"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+    container_name: portfolio_manager_api
+    environment: *backend-environment
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
 volumes:
   mysql_data:

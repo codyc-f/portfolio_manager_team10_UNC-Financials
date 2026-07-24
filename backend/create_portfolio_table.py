@@ -2,17 +2,21 @@
 Creates the portfolio_manager database and PORTFOLIO table.
 Run this after starting MySQL with `docker compose up -d` (see repo root):
 
-    python create_portfolio_table.py
+    MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE
 """
 
-import mysql.connector
+import os
 
-# Matches the MySQL container defined in docker-compose.yml.
-DB_HOST = "localhost"
-DB_PORT = 3306
-DB_USER = "root"
-DB_PASSWORD = "devpassword"
-DATABASE_NAME = "portfolio_manager"
+import mysql.connector
+from dotenv import load_dotenv
+
+load_dotenv()  # reads .env from the repo root, if present
+
+DB_HOST = os.environ.get("MYSQL_HOST", "localhost")
+DB_PORT = int(os.environ.get("MYSQL_PORT", 3306))
+DB_USER = os.environ.get("MYSQL_USER", "root")
+DB_PASSWORD = os.environ.get("MYSQL_PASSWORD", "devpassword")
+DATABASE_NAME = os.environ.get("MYSQL_DATABASE", "portfolio_manager")
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS PORTFOLIO (

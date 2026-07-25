@@ -6,6 +6,7 @@ Run this after starting MySQL with `docker compose up -d` (see repo root):
 """
 
 import os
+import time
 
 import mysql.connector
 from dotenv import load_dotenv
@@ -30,12 +31,29 @@ CREATE TABLE IF NOT EXISTS PORTFOLIO (
 
 
 def main():
-    connection = mysql.connector.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD,
-    )
+    max_retries = 5
+    retry_count = 0
+    connection = None
+    
+    while retry_count < max_retries:
+        try:
+            connection = mysql.connector.connect(
+                host=DB_HOST,
+                port=DB_PORT,
+                user=DB_USER,
+                password=DB_PASSWORD,
+            )
+            print("Successfully connected to MySQL!")
+            break
+        except mysql.connector.errors.DatabaseError as e:
+            retry_count += 1
+            if retry_count >= max_retries:
+                print(f"Failed to connect after {max_retries} attempts")
+                raise
+            print(f"Connection attempt {retry_count} failed: {e}")
+            print(f"Retrying in 3 seconds...")
+            time.sleep(3)
+    
     cursor = connection.cursor()
 
     cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DATABASE_NAME}")

@@ -18,8 +18,8 @@ services:
         ]
       interval: 5s
       timeout: 5s
-      retries: 20
-      start_period: 20s
+      retries: 40
+      start_period: 30s
 
   db-init:
     build:

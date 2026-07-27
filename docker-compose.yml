@@ -30,7 +30,7 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: devpassword
       MYSQL_DATABASE: portfolio_manager
-    command: ["python", "create_portfolio_table.py"]
+    command: ["python", "table_initializer.py"]
     depends_on:
       mysql:
         condition: service_healthy

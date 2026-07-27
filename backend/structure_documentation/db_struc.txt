@@ -8,15 +8,6 @@ erDiagram
         DATETIME updated_at
     }
 
-    ASSET {
-        UUID id PK
-        VARCHAR ticker
-        VARCHAR name
-        VARCHAR asset_type
-        VARCHAR currency
-        DATETIME created_at
-    }
-
     HOLDING {
         UUID id PK
         UUID portfolio_id FK
@@ -30,4 +21,3 @@ erDiagram
     }
 
     PORTFOLIO ||--o{ HOLDING : records
-    ASSET ||--o{ HOLDING : traded

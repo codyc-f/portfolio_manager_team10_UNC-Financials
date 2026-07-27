@@ -118,11 +118,13 @@ def create_portfolio():
 
         return jsonify({"id": portfolio_id, "message": "Portfolio created successfully"}), 201
     except RuntimeError as exc:
-        return jsonify({"error": str(exc)}), 503
-    except mysql.connector.Error as exc:
+        app.logger.error("Database unavailable while creating portfolio: %s", exc)
+        return jsonify({"error": "Database is unavailable. Please try again later."}), 503
+    except mysql.connector.Error:
         if "db" in g:
             g.db.rollback()
-        return jsonify({"error": f"Database error: {exc}"}), 500
+        app.logger.exception("Database error while creating portfolio")
+        return jsonify({"error": "Database operation failed."}), 500
     finally:
         if cursor is not None:
             cursor.close()
@@ -151,12 +153,10 @@ def create_holding():
                 400,
             )
 
-        columns = list(payload.keys())
-        if any(not column.replace("_", "").isalnum() for column in columns):
-            return jsonify({"error": "Invalid field name in payload"}), 400
-        values = [payload[column] for column in columns]
-        placeholders = ", ".join(["%s"] * len(columns))
-        column_list = ", ".join(columns)
+        insert_columns = sorted(required_fields)
+        values = [payload[column] for column in insert_columns]
+        placeholders = ", ".join(["%s"] * len(insert_columns))
+        column_list = ", ".join(insert_columns)
 
         cursor = db.cursor()
         cursor.execute(
@@ -170,11 +170,13 @@ def create_holding():
             201,
         )
     except RuntimeError as exc:
-        return jsonify({"error": str(exc)}), 503
-    except mysql.connector.Error as exc:
+        app.logger.error("Database unavailable while creating holding: %s", exc)
+        return jsonify({"error": "Database is unavailable. Please try again later."}), 503
+    except mysql.connector.Error:
         if "db" in g:
             g.db.rollback()
-        return jsonify({"error": f"Database error: {exc}"}), 500
+        app.logger.exception("Database error while creating holding")
+        return jsonify({"error": "Database operation failed."}), 500
     finally:
         if cursor is not None:
             cursor.close()

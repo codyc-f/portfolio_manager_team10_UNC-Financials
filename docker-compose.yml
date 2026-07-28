@@ -30,7 +30,7 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: devpassword
       MYSQL_DATABASE: portfolio_manager
-    command: ["python", "create_portfolio_table.py"]
+    command: ["python", "table_initializer.py"]
     depends_on:
       mysql:
         condition: service_healthy
@@ -42,7 +42,7 @@ services:
     container_name: portfolio_manager_api
     environment: *backend-environment
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5001:5001"
     volumes:
       - ./backend:/app
     depends_on:

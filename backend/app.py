@@ -1,30 +1,69 @@
-import os
-from flask import Flask, request, jsonify
-import mysql.connector
-from dotenv import load_dotenv
-from helper_functions import get_required_fields
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
-load_dotenv()  # reads .env from the repo root, if present
+from flask import Flask, jsonify, request
+import mysql.connector
+
+from db_test_connection import get_connection
 
 app = Flask(__name__)
 
-DB_HOST = os.environ.get("MYSQL_HOST", "localhost")
-DB_PORT = int(os.environ.get("MYSQL_PORT", 3306))
-DB_USER = os.environ.get("MYSQL_USER", "root")
-DB_PASSWORD = os.environ.get("MYSQL_PASSWORD", "devpassword")
-DATABASE_NAME = os.environ.get("MYSQL_DATABASE", "portfolio_manager")
+HOLDING_REQUIRED_FIELDS = {
+    "portfolio_id",
+    "ticker",
+    "asset_name",
+    "asset_type",
+    "currency",
+    "trade_type",
+    "quantity",
+    "price_per_unit",
+    "traded_at",
+}
 
 
-# Establish the database connection
-db = mysql.connector.connect(
-    host=DB_HOST,
-    port=DB_PORT,
-    user=DB_USER,
-    password=DB_PASSWORD,
-    database=DATABASE_NAME,
-)
+def is_non_empty_string(value, max_length):
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and len(value) <= max_length
+    )
 
-HOLDING_REQUIRED_FIELDS = get_required_fields(db, DATABASE_NAME, "HOLDING")
+
+def is_currency_code(value):
+    return (
+        isinstance(value, str)
+        and len(value) == 3
+        and value.isalpha()
+        and value.isupper()
+    )
+
+
+def is_number_in_range(value, minimum, maximum=None):
+    if isinstance(value, bool):
+        return False
+
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+
+    if not number.is_finite() or number < Decimal(str(minimum)):
+        return False
+
+    return maximum is None or number <= Decimal(str(maximum))
+
+
+def is_mysql_datetime(value):
+    if not isinstance(value, str):
+        return False
+
+    try:
+        datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return False
+
+    return True
+
 
 @app.route("/")
 def hello():
@@ -51,28 +90,41 @@ def create_portfolio():
         HTTP 201 with a success message when the portfolio is created.
         HTTP 400 with an error message when a required field is missing.
     """
-    # 1. Parse the incoming JSON body from the request
-    data = request.get_json()
+    data = request.get_json(silent=True)
 
-    # Simple validation to ensure required fields exist
-    if not data or 'name' not in data or 'base_currency' not in data:
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+
+    if "name" not in data or "base_currency" not in data:
         return jsonify({"error": "Missing required fields: 'name' and 'base_currency'"}), 400
 
-    name = data['name']
-    base_currency = data['base_currency']
+    name = data["name"]
+    base_currency = data["base_currency"]
 
-    # 2. Get a cursor to run the query
-    cursor = db.cursor()
+    if not is_non_empty_string(name, 255):
+        return jsonify({
+            "error": "'name' must be a non-empty string of at most 255 characters"
+        }), 400
+
+    if not is_currency_code(base_currency):
+        return jsonify({
+            "error": "'base_currency' must be a 3-letter uppercase currency code"
+        }), 400
 
     # 3. Use parameter placeholders (%s) to safely insert data
     sql = "INSERT INTO PORTFOLIO (name, base_currency) VALUES (%s, %s)"
 
-    # 4. Execute the query with data provided in a tuple[cite: 1]
-    cursor.execute(sql, (name, base_currency))
-
-    # 5. Commit the changes to the database[cite: 1]
-    db.commit()
-    cursor.close()
+    try:
+        with get_connection() as connection:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(sql, (name, base_currency))
+                    connection.commit()
+            except mysql.connector.Error as error:
+                connection.rollback()
+                return jsonify({"error": str(error)}), 500
+    except mysql.connector.Error as error:
+        return jsonify({"error": str(error)}), 500
 
     # 6. Return a success response[cite: 1]
     return jsonify({"message": "Portfolio created successfully"}), 201
@@ -88,19 +140,20 @@ def get_portfolio(portfolio_id):
         HTTP 200 with the portfolio as JSON when it exists.
         HTTP 404 with an error message when it does not exist.
     """
-    # Get a cursor. Passing dictionary=True makes it easier to convert the row to JSON later.
-    cursor = db.cursor(dictionary=True)
-
     # Use the %s placeholder for the WHERE clause to prevent SQL injection
     sql = "SELECT id, name, base_currency, created_at, updated_at FROM PORTFOLIO WHERE id = %s"
 
-    # Execute the query, passing the portfolio_id in a tuple
-    cursor.execute(sql, (portfolio_id,))
-
-    # Fetch a single record
-    portfolio = cursor.fetchone()
-
-    cursor.close()
+    try:
+        with get_connection() as connection:
+            try:
+                with connection.cursor(dictionary=True) as cursor:
+                    cursor.execute(sql, (portfolio_id,))
+                    portfolio = cursor.fetchone()
+            except mysql.connector.Error as error:
+                connection.rollback()
+                return jsonify({"error": str(error)}), 500
+    except mysql.connector.Error as error:
+        return jsonify({"error": str(error)}), 500
 
     # If a record was found, return it. Otherwise, return a 404 error.
     if portfolio:
@@ -120,15 +173,20 @@ def delete_portfolio(portfolio_id):
         HTTP 200 with a deletion message when the portfolio is deleted.
         HTTP 404 with an error message when it does not exist.
     """
-    cursor = db.cursor()
-
     # Use a parameterized query so the portfolio ID is never treated as SQL.
     sql = "DELETE FROM PORTFOLIO WHERE id = %s"
-    cursor.execute(sql, (portfolio_id,))
-    deleted = cursor.rowcount > 0
-
-    db.commit()
-    cursor.close()
+    try:
+        with get_connection() as connection:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(sql, (portfolio_id,))
+                    deleted = cursor.rowcount > 0
+                    connection.commit()
+            except mysql.connector.Error as error:
+                connection.rollback()
+                return jsonify({"error": str(error)}), 500
+    except mysql.connector.Error as error:
+        return jsonify({"error": str(error)}), 500
 
     if not deleted:
         return jsonify({"error": "Portfolio not found"}), 404
@@ -167,16 +225,58 @@ def create_holding():
             "error": f"Missing required fields: {', '.join(sorted(missing_fields))}"
         }), 400
 
-    cursor = db.cursor()
+    if (
+        isinstance(data["portfolio_id"], bool)
+        or not isinstance(data["portfolio_id"], int)
+        or data["portfolio_id"] <= 0
+    ):
+        return jsonify({
+            "error": "'portfolio_id' must be a positive integer"
+        }), 400
 
-    # Give a clear response instead of relying on a foreign-key database error.
-    cursor.execute(
-        "SELECT id FROM PORTFOLIO WHERE id = %s",
-        (data["portfolio_id"],),
-    )
-    if cursor.fetchone() is None:
-        cursor.close()
-        return jsonify({"error": "Portfolio not found"}), 404
+    text_field_limits = {
+        "ticker": 20,
+        "asset_name": 255,
+        "asset_type": 50,
+    }
+    for field, max_length in text_field_limits.items():
+        if not is_non_empty_string(data[field], max_length):
+            return jsonify({
+                "error": (
+                    f"'{field}' must be a non-empty string "
+                    f"of at most {max_length} characters"
+                )
+            }), 400
+
+    if not is_currency_code(data["currency"]):
+        return jsonify({
+            "error": "'currency' must be a 3-letter uppercase currency code"
+        }), 400
+
+    if data["trade_type"] not in {"BUY", "SELL"}:
+        return jsonify({
+            "error": "'trade_type' must be either 'BUY' or 'SELL'"
+        }), 400
+
+    if not is_number_in_range(data["quantity"], 0.000001):
+        return jsonify({
+            "error": "'quantity' must be a number greater than zero"
+        }), 400
+
+    if not is_number_in_range(data["price_per_unit"], 0):
+        return jsonify({
+            "error": "'price_per_unit' must be a non-negative number"
+        }), 400
+
+    if not is_number_in_range(data.get("fee_amount", 0), 0):
+        return jsonify({
+            "error": "'fee_amount' must be a non-negative number"
+        }), 400
+
+    if not is_mysql_datetime(data["traded_at"]):
+        return jsonify({
+            "error": "'traded_at' must use YYYY-MM-DD HH:MM:SS format"
+        }), 400
 
     sql = """
         INSERT INTO HOLDING (
@@ -205,11 +305,27 @@ def create_holding():
         data.get("fee_amount", 0.00),
         data["traded_at"],
     )
-    cursor.execute(sql, values)
-    holding_id = cursor.lastrowid
 
-    db.commit()
-    cursor.close()
+    try:
+        with get_connection() as connection:
+            try:
+                with connection.cursor() as cursor:
+                    # Give a clear response instead of relying on a foreign-key error.
+                    cursor.execute(
+                        "SELECT id FROM PORTFOLIO WHERE id = %s",
+                        (data["portfolio_id"],),
+                    )
+                    if cursor.fetchone() is None:
+                        return jsonify({"error": "Portfolio not found"}), 404
+
+                    cursor.execute(sql, values)
+                    holding_id = cursor.lastrowid
+                    connection.commit()
+            except mysql.connector.Error as error:
+                connection.rollback()
+                return jsonify({"error": str(error)}), 500
+    except mysql.connector.Error as error:
+        return jsonify({"error": str(error)}), 500
 
     return jsonify({
         "id": holding_id,
@@ -228,8 +344,6 @@ def get_holding(holding_id):
         HTTP 200 with the complete holding row as JSON when it exists.
         HTTP 404 with an error message when it does not exist.
     """
-    cursor = db.cursor(dictionary=True)
-
     sql = """
         SELECT
             id,
@@ -247,9 +361,17 @@ def get_holding(holding_id):
         FROM HOLDING
         WHERE id = %s
     """
-    cursor.execute(sql, (holding_id,))
-    holding = cursor.fetchone()
-    cursor.close()
+    try:
+        with get_connection() as connection:
+            try:
+                with connection.cursor(dictionary=True) as cursor:
+                    cursor.execute(sql, (holding_id,))
+                    holding = cursor.fetchone()
+            except mysql.connector.Error as error:
+                connection.rollback()
+                return jsonify({"error": str(error)}), 500
+    except mysql.connector.Error as error:
+        return jsonify({"error": str(error)}), 500
 
     if holding is None:
         return jsonify({"error": "Holding not found"}), 404
@@ -268,14 +390,19 @@ def delete_holding(holding_id):
         HTTP 200 with a deletion message when the holding is deleted.
         HTTP 404 with an error message when it does not exist.
     """
-    cursor = db.cursor()
-
     sql = "DELETE FROM HOLDING WHERE id = %s"
-    cursor.execute(sql, (holding_id,))
-    deleted = cursor.rowcount > 0
-
-    db.commit()
-    cursor.close()
+    try:
+        with get_connection() as connection:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(sql, (holding_id,))
+                    deleted = cursor.rowcount > 0
+                    connection.commit()
+            except mysql.connector.Error as error:
+                connection.rollback()
+                return jsonify({"error": str(error)}), 500
+    except mysql.connector.Error as error:
+        return jsonify({"error": str(error)}), 500
 
     if not deleted:
         return jsonify({"error": "Holding not found"}), 404

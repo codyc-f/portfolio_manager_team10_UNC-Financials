@@ -12,4 +12,4 @@ COPY . .
 
 EXPOSE 5001
 
-CMD ["flask", "--app", "app", "run", "--debug", "--host=0.0.0.0", "--port=5001"]
+CMD ["flask", "--app", "app", "run", "--debug", "--no-debugger", "--host=0.0.0.0", "--port=5001"]

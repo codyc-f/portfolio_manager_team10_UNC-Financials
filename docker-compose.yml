@@ -42,7 +42,7 @@ services:
     container_name: portfolio_manager_api
     environment: *backend-environment
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5001:5001"
     volumes:
       - ./backend:/app
     depends_on:

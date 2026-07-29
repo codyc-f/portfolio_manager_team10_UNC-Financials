@@ -33,6 +33,7 @@ import type {
   HoldingDraft,
   Portfolio,
   PortfolioDraft,
+  StockOption,
   TradeType,
 } from "./types";
 
@@ -89,6 +90,8 @@ export default function App() {
   const [connectionError, setConnectionError] = useState("");
   const [mutationError, setMutationError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [stockOptions, setStockOptions] = useState<StockOption[]>([]);
+  const [stockOptionsError, setStockOptionsError] = useState("");
   const [query, setQuery] = useState("");
   const [assetFilter, setAssetFilter] = useState<AssetType | "All">("All");
   const [tradeFilter, setTradeFilter] = useState<TradeType | "All">("All");
@@ -154,8 +157,19 @@ export default function App() {
     }
   }
 
+  async function refreshStockOptions() {
+    setStockOptionsError("");
+    try {
+      setStockOptions(await api.listMostActiveStocks());
+    } catch (error) {
+      setStockOptions([]);
+      setStockOptionsError(errorMessage(error));
+    }
+  }
+
   useEffect(() => {
     void refreshPortfolios();
+    void refreshStockOptions();
   }, []);
 
   useEffect(() => {
@@ -612,6 +626,8 @@ export default function App() {
         <HoldingModal
           draft={holdingDraft}
           setDraft={setHoldingDraft}
+          stockOptions={stockOptions}
+          stockOptionsError={stockOptionsError}
           editing={editingHoldingId !== null}
           submitting={submitting}
           error={mutationError}
@@ -736,23 +752,43 @@ function PortfolioForm({ draft, setDraft, onSubmit, submitting, error, submitLab
   );
 }
 
-function HoldingModal({ draft, setDraft, editing, submitting, error, close, onSubmit }: {
+function HoldingModal({ draft, setDraft, stockOptions, stockOptionsError, editing, submitting, error, close, onSubmit }: {
   draft: HoldingDraft;
   setDraft: (draft: HoldingDraft) => void;
+  stockOptions: StockOption[];
+  stockOptionsError: string;
   editing: boolean;
   submitting: boolean;
   error: string;
   close: () => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  function selectTicker(ticker: string) {
+    const selectedStock = stockOptions.find((stock) => stock.ticker === ticker);
+    if (!selectedStock) {
+      setDraft({ ...draft, ticker });
+      return;
+    }
+
+    setDraft({
+      ...draft,
+      ticker: selectedStock.ticker,
+      assetName: selectedStock.name,
+      assetType: "Stock",
+      pricePerUnit: selectedStock.currentPrice,
+      currency: "USD",
+    });
+  }
+
   return (
     <div className="modal-backdrop">
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="holding-title">
         <header className="modal-header"><div><span className="modal-kicker">{editing ? "UPDATE TRANSACTION" : "NEW TRANSACTION"}</span><h2 id="holding-title">{editing ? "Edit holding" : "Add a holding"}</h2><p>Record the trade details for your portfolio.</p></div><button onClick={close} aria-label="Close"><X size={20} /></button></header>
         <form onSubmit={onSubmit}>
           {error && <FormError message={error} />}
+          {stockOptionsError && <FormError message={stockOptionsError} />}
           <div className="form-grid">
-            <Field label="Ticker symbol"><input value={draft.ticker} onChange={(event) => setDraft({ ...draft, ticker: event.target.value })} placeholder="e.g. AAPL" maxLength={20} required autoFocus /></Field>
+            <Field label="Ticker symbol"><select value={draft.ticker} onChange={(event) => selectTicker(event.target.value)} required autoFocus><option value="" disabled>{stockOptions.length ? "Select a ticker" : "Loading tickers..."}</option>{stockOptions.map((stock) => <option key={stock.ticker} value={stock.ticker}>{stock.ticker} - {stock.name}</option>)}</select></Field>
             <Field label="Asset name"><input value={draft.assetName} onChange={(event) => setDraft({ ...draft, assetName: event.target.value })} placeholder="e.g. Apple Inc." maxLength={255} required /></Field>
             <Field label="Asset type"><select value={draft.assetType} onChange={(event) => setDraft({ ...draft, assetType: event.target.value as AssetType })}>{assetTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
             <Field label="Trade type"><div className="segmented-control">{(["BUY", "SELL"] as TradeType[]).map((type) => <button key={type} type="button" className={draft.tradeType === type ? "selected" : ""} onClick={() => setDraft({ ...draft, tradeType: type })}>{draft.tradeType === type && <Check size={14} />}{type === "BUY" ? "Buy" : "Sell"}</button>)}</div></Field>

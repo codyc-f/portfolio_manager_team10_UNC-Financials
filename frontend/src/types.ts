@@ -29,3 +29,9 @@ export interface Holding {
 }
 
 export type HoldingDraft = Omit<Holding, "id">;
+
+export interface StockOption {
+  ticker: string;
+  name: string;
+  currentPrice: number;
+}

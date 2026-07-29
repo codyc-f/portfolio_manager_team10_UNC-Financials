@@ -193,6 +193,39 @@ def hello():
     """
     return "Welcome to UNC-Financials Portfolio Manager!"
 
+
+@app.route("/api/stocks/most-active", methods=["GET"])
+def list_most_active_stocks():
+    """List the 20 most actively traded US stocks.
+    ---
+    tags:
+      - Market Data
+    responses:
+      200:
+        description: Most actively traded US stocks from Yahoo Finance.
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              ticker:
+                type: string
+                example: AAPL
+              name:
+                type: string
+                example: Apple Inc.
+              currentPrice:
+                type: number
+                example: 195.25
+      502:
+        description: Market data provider could not be reached.
+    """
+    try:
+        return jsonify(get_top_20_stocks()), 200
+    except Exception:
+        return jsonify({"error": "Unable to load most active stocks"}), 502
+
+
 @app.route("/api/portfolios", methods=["GET"])
 def list_portfolios():
     """List all portfolios.

@@ -6,8 +6,7 @@ from flask import Flask, jsonify, request
 import mysql.connector
 
 from db_test_connection import get_connection
-from helper_functions import get_current_price
-from helper_functions import get_top_20_stocks
+from helper_functions import get_top_20_stocks, get_current_price
 
 app = Flask(__name__)
 
@@ -175,6 +174,102 @@ def serialize_db_row(row):
     return serialized
 
 
+def decimal_to_json_number(value, places="0.01"):
+    return float(value.quantize(Decimal(places)))
+
+
+def build_positions_from_transactions(transactions, current_prices=None):
+    """Build active positions from transaction rows using average cost basis."""
+    current_prices = current_prices or {}
+    positions = {}
+
+    for transaction in transactions:
+        key = (transaction["ticker"], transaction["currency"])
+        position = positions.setdefault(
+            key,
+            {
+                "ticker": transaction["ticker"],
+                "asset_name": transaction["asset_name"],
+                "asset_type": transaction["asset_type"],
+                "currency": transaction["currency"],
+                "quantity_owned": Decimal("0"),
+                "cost_basis": Decimal("0"),
+            },
+        )
+
+        quantity = Decimal(str(transaction["quantity"]))
+        price_per_unit = Decimal(str(transaction["price_per_unit"]))
+        fee_amount = Decimal(str(transaction["fee_amount"]))
+
+        if transaction["trade_type"] == "BUY":
+            position["asset_name"] = transaction["asset_name"]
+            position["asset_type"] = transaction["asset_type"]
+            position["quantity_owned"] += quantity
+            position["cost_basis"] += (quantity * price_per_unit) + fee_amount
+            continue
+
+        if position["quantity_owned"] < quantity:
+            raise ValueError(
+                f"Oversold position for {transaction['ticker']} "
+                f"{transaction['currency']}"
+            )
+
+        average_cost = position["cost_basis"] / position["quantity_owned"]
+        position["quantity_owned"] -= quantity
+        position["cost_basis"] -= average_cost * quantity
+
+        if position["quantity_owned"] == 0:
+            position["cost_basis"] = Decimal("0")
+
+    active_positions = []
+    for position in positions.values():
+        quantity_owned = position["quantity_owned"]
+        if quantity_owned <= 0:
+            continue
+
+        cost_basis = position["cost_basis"]
+        average_cost = cost_basis / quantity_owned
+        current_price = current_prices.get(position["ticker"])
+        market_value = None
+        unrealized_gain = None
+        unrealized_gain_percent = None
+
+        if current_price is not None:
+            current_price = Decimal(str(current_price))
+            market_value = quantity_owned * current_price
+            unrealized_gain = market_value - cost_basis
+            if cost_basis != 0:
+                unrealized_gain_percent = (unrealized_gain / cost_basis) * 100
+
+        active_positions.append({
+            "ticker": position["ticker"],
+            "asset_name": position["asset_name"],
+            "asset_type": position["asset_type"],
+            "currency": position["currency"],
+            "quantity_owned": decimal_to_json_number(quantity_owned, "0.000001"),
+            "average_cost": decimal_to_json_number(average_cost),
+            "cost_basis": decimal_to_json_number(cost_basis),
+            "current_price": (
+                None if current_price is None
+                else decimal_to_json_number(current_price)
+            ),
+            "market_value": (
+                None if market_value is None
+                else decimal_to_json_number(market_value)
+            ),
+            "unrealized_gain": (
+                None if unrealized_gain is None
+                else decimal_to_json_number(unrealized_gain)
+            ),
+            "unrealized_gain_percent": (
+                None if unrealized_gain_percent is None
+                else decimal_to_json_number(unrealized_gain_percent)
+            ),
+        })
+
+    return sorted(active_positions, key=lambda row: row["ticker"])
+
+
 @app.route("/")
 def hello():
     """Check that the API is running.
@@ -224,6 +319,43 @@ def list_most_active_stocks():
         return jsonify(get_top_20_stocks()), 200
     except Exception:
         return jsonify({"error": "Unable to load most active stocks"}), 502
+
+
+@app.route("/api/stocks/<ticker>/price", methods=["GET"])
+def get_stock_price(ticker):
+    """Get the latest available market price for a stock ticker.
+    ---
+    tags:
+      - Market Data
+    parameters:
+      - name: ticker
+        in: path
+        description: Stock ticker symbol.
+        required: true
+        type: string
+        minLength: 1
+        maxLength: 20
+    responses:
+      200:
+        description: Latest available market price.
+      400:
+        description: The ticker is invalid.
+      502:
+        description: Market data provider could not be reached.
+    """
+    ticker = ticker.strip().upper()
+    if not ticker or len(ticker) > 20:
+        return jsonify({"error": "'ticker' must be 1 to 20 characters"}), 400
+
+    try:
+        current_price = get_current_price(ticker)
+    except Exception as error:
+        return jsonify({"error": str(error)}), 502
+
+    return jsonify({
+        "ticker": ticker,
+        "current_price": current_price,
+    }), 200
 
 
 @app.route("/api/portfolios", methods=["GET"])
@@ -758,6 +890,87 @@ def list_holdings():
         return jsonify({"error": str(error)}), 500
 
     return jsonify([serialize_db_row(row) for row in holdings]), 200
+
+
+@app.route("/api/portfolios/<portfolio_id>/positions", methods=["GET"])
+def list_portfolio_positions(portfolio_id):
+    """List active grouped positions for a portfolio.
+    ---
+    tags:
+      - Portfolios
+    parameters:
+      - name: portfolio_id
+        in: path
+        description: ID of the portfolio whose active positions should be returned.
+        required: true
+        type: integer
+        minimum: 1
+    responses:
+      200:
+        description: Active positions grouped by ticker and currency.
+      400:
+        description: The portfolio_id path parameter is invalid.
+      404:
+        description: The portfolio does not exist.
+      409:
+        description: Holding transactions imply a negative position.
+      500:
+        description: A database operation failed.
+    """
+    try:
+        portfolio_id = int(portfolio_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "'portfolio_id' must be a positive integer"}), 400
+
+    if portfolio_id <= 0:
+        return jsonify({"error": "'portfolio_id' must be a positive integer"}), 400
+
+    sql = """
+        SELECT
+            ticker,
+            asset_name,
+            asset_type,
+            currency,
+            trade_type,
+            quantity,
+            price_per_unit,
+            fee_amount
+        FROM HOLDING
+        WHERE portfolio_id = %s
+        ORDER BY ticker ASC, currency ASC, traded_at ASC, id ASC
+    """
+
+    try:
+        with get_connection() as connection:
+            with connection.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    "SELECT id FROM PORTFOLIO WHERE id = %s",
+                    (portfolio_id,),
+                )
+                if cursor.fetchone() is None:
+                    return jsonify({"error": "Portfolio not found"}), 404
+
+                cursor.execute(sql, (portfolio_id,))
+                transactions = cursor.fetchall()
+    except mysql.connector.Error as error:
+        return jsonify({"error": str(error)}), 500
+
+    try:
+        positions_without_prices = build_positions_from_transactions(transactions)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 409
+
+    tickers = [position["ticker"] for position in positions_without_prices]
+    current_prices = {}
+    try:
+        for ticker in tickers:
+            current_prices[ticker] = get_current_price(ticker)
+    except Exception as error:
+        return jsonify({"error": str(error)}), 502
+
+    positions = build_positions_from_transactions(transactions, current_prices)
+
+    return jsonify(positions), 200
 
 
 @app.route("/api/holdings", methods=["POST"])

@@ -85,11 +85,13 @@ header is included in each `curl` command.
 | `GET` | `/api/portfolios/<portfolio_id>` | Get one portfolio | `200` |
 | `PUT` | `/api/portfolios/<portfolio_id>` | Update a portfolio | `200` |
 | `DELETE` | `/api/portfolios/<portfolio_id>` | Delete one portfolio | `200` |
+| `GET` | `/api/portfolios/<portfolio_id>/positions` | List active grouped positions | `200` |
 | `GET` | `/api/holdings?portfolio_id=<id>` | List portfolio holdings | `200` |
 | `POST` | `/api/holdings` | Record a holding transaction | `201` |
 | `GET` | `/api/holdings/<holding_id>` | Get one holding transaction | `200` |
 | `PUT` | `/api/holdings/<holding_id>` | Update a holding transaction | `200` |
 | `DELETE` | `/api/holdings/<holding_id>` | Delete one holding transaction | `200` |
+| `GET` | `/api/stocks/<ticker>/price` | Get latest stock price | `200` |
 
 ### Check the API
 
@@ -181,6 +183,55 @@ Successful response (`200 OK`):
 The endpoint returns `404 Not Found` if the portfolio does not exist. A
 portfolio referenced by a holding cannot be deleted until its holdings are
 deleted because `HOLDING.portfolio_id` is a foreign key.
+
+### List active positions
+
+This endpoint groups holding transactions into one active position row per
+ticker and currency. It uses weighted average cost basis and calls Yahoo Finance
+through `get_current_price()` to calculate market value and unrealized gain.
+
+```bash
+curl http://localhost:5001/api/portfolios/1/positions
+```
+
+Successful response (`200 OK`):
+
+```json
+[
+  {
+    "ticker": "AAPL",
+    "asset_name": "Apple Inc.",
+    "asset_type": "STOCK",
+    "currency": "USD",
+    "quantity_owned": 31.5,
+    "average_cost": 165.37,
+    "cost_basis": 5209.1,
+    "current_price": 210.25,
+    "market_value": 6622.88,
+    "unrealized_gain": 1413.78,
+    "unrealized_gain_percent": 27.14
+  }
+]
+```
+
+If transactions imply a negative position, such as selling more shares than the
+portfolio owns, the endpoint returns `409 Conflict`. If market data cannot be
+loaded, the endpoint returns `502 Bad Gateway`.
+
+### Get a stock price
+
+```bash
+curl http://localhost:5001/api/stocks/AAPL/price
+```
+
+Successful response (`200 OK`):
+
+```json
+{
+  "ticker": "AAPL",
+  "current_price": 210.25
+}
+```
 
 ### Create a holding
 

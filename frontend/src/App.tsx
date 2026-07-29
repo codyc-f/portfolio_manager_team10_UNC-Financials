@@ -31,6 +31,7 @@ import type {
   AssetType,
   Holding,
   HoldingDraft,
+  Position,
   Portfolio,
   PortfolioDraft,
   StockOption,
@@ -71,6 +72,18 @@ function formatCurrency(value: number, currency = "USD") {
   }).format(value);
 }
 
+function formatPercent(value: number) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function gainLossClass(value: number | null) {
+  if (value === null || value === 0) {
+    return "gain-loss gain-loss--neutral";
+  }
+
+  return value > 0 ? "gain-loss gain-loss--gain" : "gain-loss gain-loss--loss";
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -85,6 +98,7 @@ export default function App() {
     null,
   );
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [connectionError, setConnectionError] = useState("");
@@ -148,10 +162,16 @@ export default function App() {
     setHoldingsLoading(true);
     setConnectionError("");
     try {
-      setHoldings(await api.listHoldings(portfolioId));
+      const [nextHoldings, nextPositions] = await Promise.all([
+        api.listHoldings(portfolioId),
+        api.listPositions(portfolioId),
+      ]);
+      setHoldings(nextHoldings);
+      setPositions(nextPositions);
     } catch (error) {
       setConnectionError(errorMessage(error));
       setHoldings([]);
+      setPositions([]);
     } finally {
       setHoldingsLoading(false);
     }
@@ -175,6 +195,7 @@ export default function App() {
   useEffect(() => {
     if (selectedPortfolioId === null) {
       setHoldings([]);
+      setPositions([]);
       return;
     }
     setQuery("");
@@ -189,35 +210,32 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  const visibleHoldings = useMemo(() => {
+  const visiblePositions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return holdings.filter((holding) => {
+    return positions.filter((position) => {
       const matchesQuery =
         !normalizedQuery ||
-        `${holding.ticker} ${holding.assetName} ${holding.assetType}`
+        `${position.ticker} ${position.assetName} ${position.assetType}`
           .toLowerCase()
           .includes(normalizedQuery);
       return (
         matchesQuery &&
-        (assetFilter === "All" || holding.assetType === assetFilter) &&
-        (tradeFilter === "All" || holding.tradeType === tradeFilter)
+        (assetFilter === "All" || position.assetType === assetFilter)
       );
     });
-  }, [assetFilter, holdings, query, tradeFilter]);
+  }, [assetFilter, positions, query]);
 
   const totals = useMemo(() => {
-    const invested = holdings.reduce((sum, holding) => {
-      const value = holding.quantity * holding.pricePerUnit;
-      return holding.tradeType === "BUY"
-        ? sum + value + holding.feeAmount
-        : sum - value + holding.feeAmount;
-    }, 0);
+    const invested = positions.reduce(
+      (sum, position) => sum + position.costBasis,
+      0,
+    );
     return {
       invested,
-      positions: new Set(holdings.map((holding) => holding.ticker)).size,
+      positions: positions.length,
       transactions: holdings.length,
     };
-  }, [holdings]);
+  }, [holdings, positions]);
 
   function openCreateHolding() {
     if (!selectedPortfolioId) return;
@@ -470,7 +488,7 @@ export default function App() {
               </div>
               <h1>Holdings</h1>
               <p>
-                Manage every transaction in {selectedPortfolio?.name}.
+                Review active positions in {selectedPortfolio?.name}.
               </p>
             </div>
             <button className="primary-button" onClick={openCreateHolding}>
@@ -517,7 +535,7 @@ export default function App() {
             <div className="card-heading">
               <div>
                 <h2>All holdings</h2>
-                <p>{visibleHoldings.length} transactions shown</p>
+                <p>{visiblePositions.length} active positions shown</p>
               </div>
               <div className="filters">
                 <label className="search-field">
@@ -541,13 +559,6 @@ export default function App() {
                   options={["All", ...assetTypes]}
                   allLabel="All assets"
                 />
-                <FilterSelect
-                  label="Trade type"
-                  value={tradeFilter}
-                  onChange={(value) => setTradeFilter(value as TradeType | "All")}
-                  options={["All", "BUY", "SELL"]}
-                  allLabel="All trades"
-                />
               </div>
             </div>
 
@@ -562,53 +573,59 @@ export default function App() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Asset</th><th>Type</th><th>Trade</th><th>Quantity</th>
-                        <th>Price / unit</th><th>Total value</th><th>Trade date</th>
-                        <th aria-label="Actions" />
+                        <th>Asset</th><th>Type</th><th>Quantity</th>
+                        <th>Avg cost</th><th>Current price</th><th>Cost basis</th>
+                        <th>Market value</th><th>Unrealized gain</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleHoldings.map((holding) => (
-                        <tr key={holding.id}>
+                      {visiblePositions.map((position) => (
+                        <tr key={`${position.ticker}-${position.currency}`}>
                           <td>
                             <div className="asset-cell">
-                              <span className={`asset-badge asset-badge--${holding.assetType.toLowerCase()}`}>
-                                {holding.ticker.slice(0, 2)}
+                              <span className={`asset-badge asset-badge--${position.assetType.toLowerCase()}`}>
+                                {position.ticker.slice(0, 2)}
                               </span>
-                              <div><strong>{holding.ticker}</strong><span>{holding.assetName}</span></div>
+                              <div><strong>{position.ticker}</strong><span>{position.assetName}</span></div>
                             </div>
                           </td>
-                          <td><span className="type-pill">{holding.assetType}</span></td>
-                          <td><span className={`trade-pill trade-pill--${holding.tradeType.toLowerCase()}`}>{holding.tradeType}</span></td>
-                          <td>{holding.quantity.toLocaleString()}</td>
-                          <td>{formatCurrency(holding.pricePerUnit, holding.currency)}</td>
-                          <td className="value-cell">{formatCurrency(holding.quantity * holding.pricePerUnit, holding.currency)}</td>
-                          <td>{formatDate(holding.tradedAt)}</td>
+                          <td><span className="type-pill">{position.assetType}</span></td>
+                          <td>{position.quantityOwned.toLocaleString()}</td>
+                          <td>{formatCurrency(position.averageCost, position.currency)}</td>
+                          <td>{position.currentPrice === null ? "Unavailable" : formatCurrency(position.currentPrice, position.currency)}</td>
+                          <td className="value-cell">{formatCurrency(position.costBasis, position.currency)}</td>
+                          <td>{position.marketValue === null ? "Unavailable" : formatCurrency(position.marketValue, position.currency)}</td>
                           <td>
-                            <div className="row-actions">
-                              <button onClick={() => openEditHolding(holding)} aria-label={`Edit ${holding.ticker}`}><Pencil size={16} /></button>
-                              <button className="danger-action" onClick={() => setDeletingHolding(holding)} aria-label={`Delete ${holding.ticker}`}><Trash2 size={16} /></button>
-                            </div>
+                            {position.unrealizedGain === null ? (
+                              "Unavailable"
+                            ) : (
+                              <span className={gainLossClass(position.unrealizedGain)}>
+                                <span>{formatCurrency(position.unrealizedGain, position.currency)}</span>
+                                {position.unrealizedGainPercent !== null && (
+                                  <small>{formatPercent(position.unrealizedGainPercent)}</small>
+                                )}
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {visibleHoldings.length === 0 && (
+                {visiblePositions.length === 0 && (
                   <div className="empty-state">
                     <div><BriefcaseBusiness size={22} /></div>
-                    <h3>{holdings.length ? "No holdings found" : "No transactions yet"}</h3>
-                    <p>{holdings.length ? "Try changing your search or filters." : "Add your first holding transaction to this portfolio."}</p>
-                    <button onClick={holdings.length ? () => {
+                    <h3>{positions.length ? "No holdings found" : "No active positions"}</h3>
+                    <p>{positions.length ? "Try changing your search or filters." : "Add a buy transaction to create an active position."}</p>
+                    <button onClick={positions.length ? () => {
                       setQuery(""); setAssetFilter("All"); setTradeFilter("All");
                     } : openCreateHolding}>
-                      {holdings.length ? "Clear filters" : "Add a holding"}
+                      {positions.length ? "Clear filters" : "Add a holding"}
                     </button>
                   </div>
                 )}
                 <div className="table-footer">
-                  <span>Showing {visibleHoldings.length} of {holdings.length} transactions</span>
+                  <span>Showing {visiblePositions.length} of {positions.length} positions from {holdings.length} transactions</span>
                   <button className="text-button" disabled>View activity history <ArrowRight size={15} /></button>
                 </div>
               </>

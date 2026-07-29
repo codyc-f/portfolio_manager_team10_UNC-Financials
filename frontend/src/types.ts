@@ -30,6 +30,20 @@ export interface Holding {
 
 export type HoldingDraft = Omit<Holding, "id">;
 
+export interface Position {
+  ticker: string;
+  assetName: string;
+  assetType: AssetType;
+  currency: string;
+  quantityOwned: number;
+  averageCost: number;
+  costBasis: number;
+  currentPrice: number | null;
+  marketValue: number | null;
+  unrealizedGain: number | null;
+  unrealizedGainPercent: number | null;
+}
+
 export interface StockOption {
   ticker: string;
   name: string;

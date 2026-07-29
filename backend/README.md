@@ -64,6 +64,13 @@ The API is available at:
 http://localhost:5001
 ```
 
+Interactive Swagger API documentation is available at:
+
+```text
+http://localhost:5001/apidocs/
+```
+
+
 All request bodies must be JSON. In Postman, choose **Body**, **raw**, and
 **JSON**. For command-line examples, the `Content-Type: application/json`
 header is included in each `curl` command.

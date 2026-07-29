@@ -1,12 +1,38 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from flasgger import Swagger
 from flask import Flask, jsonify, request
 import mysql.connector
 
 from db_test_connection import get_connection
 
 app = Flask(__name__)
+
+swagger = Swagger(
+    app,
+    template={
+        "swagger": "2.0",
+        "info": {
+            "title": "UNC-Financials Portfolio Manager API",
+            "description": (
+                "REST API for creating, retrieving, and deleting portfolios "
+                "and holding transactions."
+            ),
+            "version": "1.0.0",
+        },
+        "host": "localhost:5001",
+        "basePath": "/",
+        "schemes": ["http"],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": [
+            {"name": "Health", "description": "API availability"},
+            {"name": "Portfolios", "description": "Portfolio operations"},
+            {"name": "Holdings", "description": "Holding transaction operations"},
+        ],
+    },
+)
 
 HOLDING_REQUIRED_FIELDS = {
     "portfolio_id",
@@ -149,13 +175,19 @@ def serialize_db_row(row):
 
 @app.route("/")
 def hello():
-    """Return a welcome message that confirms the API is running.
-
-    Inputs:
-        None.
-
-    Expected output:
-        A plain-text welcome message with HTTP 200.
+    """Check that the API is running.
+    ---
+    tags:
+      - Health
+    produces:
+      - text/plain
+    responses:
+      200:
+        description: The API is running.
+        schema:
+          type: string
+        examples:
+          text/plain: Welcome to UNC-Financials Portfolio Manager!
     """
     return "Welcome to UNC-Financials Portfolio Manager!"
 
@@ -180,14 +212,59 @@ def list_portfolios():
 
 @app.route("/api/portfolios", methods=["POST"])
 def create_portfolio():
-    """Create a portfolio from the request's JSON body.
-
-    Inputs:
-        JSON body containing ``name`` and ``base_currency``.
-
-    Expected outputs:
-        HTTP 201 with a success message when the portfolio is created.
-        HTTP 400 with an error message when a required field is missing.
+    """Create a portfolio.
+    ---
+    tags:
+      - Portfolios
+    parameters:
+      - in: body
+        name: portfolio
+        description: The portfolio to create.
+        required: true
+        schema:
+          type: object
+          required:
+            - name
+            - base_currency
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+              example: Retirement Portfolio
+            base_currency:
+              type: string
+              minLength: 3
+              maxLength: 3
+              pattern: '^[A-Z]{3}$'
+              example: USD
+    responses:
+      201:
+        description: Portfolio created successfully.
+        schema:
+          type: object
+          required:
+            - message
+          properties:
+            message:
+              type: string
+              example: Portfolio created successfully
+      400:
+        description: The JSON body or one of its fields is invalid.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Request body must be a JSON object
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
     """
     data = request.get_json(silent=True)
 
@@ -222,14 +299,56 @@ def create_portfolio():
 
 @app.route("/api/portfolios/<portfolio_id>", methods=["GET"])
 def get_portfolio(portfolio_id):
-    """Return the portfolio identified by the URL path parameter.
-
-    Inputs:
-        portfolio_id: ID of the portfolio to retrieve.
-
-    Expected outputs:
-        HTTP 200 with the portfolio as JSON when it exists.
-        HTTP 404 with an error message when it does not exist.
+    """Get a portfolio by ID.
+    ---
+    tags:
+      - Portfolios
+    parameters:
+      - name: portfolio_id
+        in: path
+        description: ID of the portfolio to retrieve.
+        required: true
+        type: integer
+        minimum: 1
+    responses:
+      200:
+        description: The requested portfolio.
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            name:
+              type: string
+              example: Retirement Portfolio
+            base_currency:
+              type: string
+              example: USD
+            created_at:
+              type: string
+              format: date-time
+              example: Mon, 27 Jul 2026 14:30:00 GMT
+            updated_at:
+              type: string
+              format: date-time
+              example: Mon, 27 Jul 2026 14:30:00 GMT
+      404:
+        description: The portfolio does not exist.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Portfolio not found
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
     """
     # Use the %s placeholder for the WHERE clause to prevent SQL injection
     sql = "SELECT id, name, base_currency, created_at, updated_at FROM PORTFOLIO WHERE id = %s"
@@ -298,14 +417,43 @@ def update_portfolio(portfolio_id):
 
 @app.route("/api/portfolios/<portfolio_id>", methods=["DELETE"])
 def delete_portfolio(portfolio_id):
-    """Delete the portfolio identified by the URL path parameter.
-
-    Inputs:
-        portfolio_id: ID of the portfolio to delete.
-
-    Expected outputs:
-        HTTP 200 with a deletion message when the portfolio is deleted.
-        HTTP 404 with an error message when it does not exist.
+    """Delete a portfolio by ID.
+    ---
+    tags:
+      - Portfolios
+    description: A portfolio referenced by a holding cannot be deleted until its holdings are deleted.
+    parameters:
+      - name: portfolio_id
+        in: path
+        description: ID of the portfolio to delete.
+        required: true
+        type: integer
+        minimum: 1
+    responses:
+      200:
+        description: Portfolio deleted successfully.
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: Successfully deleted portfolio with id 1
+      404:
+        description: The portfolio does not exist.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Portfolio not found
+      500:
+        description: A database operation failed, including a foreign-key constraint failure.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
     """
     sql = "DELETE FROM PORTFOLIO WHERE id = %s"
     try:
@@ -388,18 +536,117 @@ def list_holdings():
 
 @app.route("/api/holdings", methods=["POST"])
 def create_holding():
-    """Create a holding transaction from the request's JSON body.
-
-    Inputs:
-        JSON body containing ``portfolio_id``, ``ticker``, ``asset_name``,
-        ``asset_type``, ``currency``, ``trade_type``, ``quantity``,
-        ``price_per_unit``, and ``traded_at``. ``fee_amount`` is optional
-        and defaults to 0.00.
-
-    Expected outputs:
-        HTTP 201 with the new holding ID and a success message.
-        HTTP 400 when the body is not JSON or a required field is missing.
-        HTTP 404 when the referenced portfolio does not exist.
+    """Create a holding transaction.
+    ---
+    tags:
+      - Holdings
+    description: Records one BUY or SELL transaction for an existing portfolio.
+    parameters:
+      - in: body
+        name: holding
+        description: The holding transaction to record. fee_amount is optional and defaults to 0.00.
+        required: true
+        schema:
+          type: object
+          required:
+            - portfolio_id
+            - ticker
+            - asset_name
+            - asset_type
+            - currency
+            - trade_type
+            - quantity
+            - price_per_unit
+            - traded_at
+          properties:
+            portfolio_id:
+              type: integer
+              minimum: 1
+              example: 1
+            ticker:
+              type: string
+              minLength: 1
+              maxLength: 20
+              example: AAPL
+            asset_name:
+              type: string
+              minLength: 1
+              maxLength: 255
+              example: Apple Inc.
+            asset_type:
+              type: string
+              minLength: 1
+              maxLength: 50
+              example: STOCK
+            currency:
+              type: string
+              minLength: 3
+              maxLength: 3
+              pattern: '^[A-Z]{3}$'
+              example: USD
+            trade_type:
+              type: string
+              enum:
+                - BUY
+                - SELL
+              example: BUY
+            quantity:
+              type: number
+              format: decimal
+              minimum: 0.000001
+              example: 10.5
+            price_per_unit:
+              type: number
+              format: decimal
+              minimum: 0
+              example: 195.25
+            fee_amount:
+              type: number
+              format: decimal
+              minimum: 0
+              default: 0
+              example: 2.99
+            traded_at:
+              type: string
+              description: MySQL datetime in YYYY-MM-DD HH:MM:SS format.
+              pattern: '^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$'
+              example: '2026-07-27 14:30:00'
+    responses:
+      201:
+        description: Holding transaction created successfully.
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            message:
+              type: string
+              example: Successfully created holding with holding_id 1 & portfolio_id 1
+      400:
+        description: The JSON body or one of its fields is invalid.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Missing required fields
+      404:
+        description: The referenced portfolio does not exist.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Portfolio not found
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
     """
     data = request.get_json(silent=True)
     validation_error = validate_holding_payload(data)
@@ -463,14 +710,79 @@ def create_holding():
 
 @app.route("/api/holdings/<holding_id>", methods=["GET"])
 def get_holding(holding_id):
-    """Return the holding identified by the URL path parameter.
-
-    Inputs:
-        holding_id: ID of the holding to retrieve.
-
-    Expected outputs:
-        HTTP 200 with the complete holding row as JSON when it exists.
-        HTTP 404 with an error message when it does not exist.
+    """Get a holding transaction by ID.
+    ---
+    tags:
+      - Holdings
+    parameters:
+      - name: holding_id
+        in: path
+        description: ID of the holding transaction to retrieve.
+        required: true
+        type: integer
+        minimum: 1
+    responses:
+      200:
+        description: The requested holding transaction. Decimal values may be serialized as strings to preserve precision.
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            portfolio_id:
+              type: integer
+              example: 1
+            ticker:
+              type: string
+              example: AAPL
+            asset_name:
+              type: string
+              example: Apple Inc.
+            asset_type:
+              type: string
+              example: STOCK
+            currency:
+              type: string
+              example: USD
+            trade_type:
+              type: string
+              enum:
+                - BUY
+                - SELL
+            quantity:
+              type: string
+              example: '10.500000'
+            price_per_unit:
+              type: string
+              example: '195.25'
+            fee_amount:
+              type: string
+              example: '2.99'
+            traded_at:
+              type: string
+              format: date-time
+              example: Mon, 27 Jul 2026 14:30:00 GMT
+            created_at:
+              type: string
+              format: date-time
+              example: Mon, 27 Jul 2026 14:30:00 GMT
+      404:
+        description: The holding transaction does not exist.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Holding not found
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
     """
     sql = """
         SELECT
@@ -578,14 +890,42 @@ def update_holding(holding_id):
 
 @app.route("/api/holdings/<holding_id>", methods=["DELETE"])
 def delete_holding(holding_id):
-    """Delete the holding identified by the URL path parameter.
-
-    Inputs:
-        holding_id: ID of the holding to delete.
-
-    Expected outputs:
-        HTTP 200 with a deletion message when the holding is deleted.
-        HTTP 404 with an error message when it does not exist.
+    """Delete a holding transaction by ID.
+    ---
+    tags:
+      - Holdings
+    parameters:
+      - name: holding_id
+        in: path
+        description: ID of the holding transaction to delete.
+        required: true
+        type: integer
+        minimum: 1
+    responses:
+      200:
+        description: Holding transaction deleted successfully.
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: Successfully deleted holding with id 1
+      404:
+        description: The holding transaction does not exist.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Holding not found
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
     """
     sql = "DELETE FROM HOLDING WHERE id = %s"
     try:

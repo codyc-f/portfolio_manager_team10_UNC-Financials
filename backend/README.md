@@ -80,11 +80,15 @@ header is included in each `curl` command.
 | Method | Endpoint | Purpose | Success |
 | --- | --- | --- | --- |
 | `GET` | `/` | Check that the API is running | `200` |
+| `GET` | `/api/portfolios` | List portfolios | `200` |
 | `POST` | `/api/portfolios` | Create a portfolio | `201` |
 | `GET` | `/api/portfolios/<portfolio_id>` | Get one portfolio | `200` |
+| `PUT` | `/api/portfolios/<portfolio_id>` | Update a portfolio | `200` |
 | `DELETE` | `/api/portfolios/<portfolio_id>` | Delete one portfolio | `200` |
+| `GET` | `/api/holdings?portfolio_id=<id>` | List portfolio holdings | `200` |
 | `POST` | `/api/holdings` | Record a holding transaction | `201` |
 | `GET` | `/api/holdings/<holding_id>` | Get one holding transaction | `200` |
+| `PUT` | `/api/holdings/<holding_id>` | Update a holding transaction | `200` |
 | `DELETE` | `/api/holdings/<holding_id>` | Delete one holding transaction | `200` |
 
 ### Check the API
@@ -120,6 +124,9 @@ Successful response (`201 Created`):
 
 ```json
 {
+  "id": 1,
+  "name": "Retirement Portfolio",
+  "base_currency": "USD",
   "message": "Portfolio created successfully"
 }
 ```
@@ -288,16 +295,10 @@ The endpoint returns `404 Not Found` if the holding does not exist.
 
 1. Start the application with `docker compose up --build`.
 2. Create a portfolio using `POST /api/portfolios`.
-3. Find the generated portfolio ID with:
-
-   ```bash
-   docker exec portfolio_manager_mysql mysql \
-     -uroot -pdevpassword portfolio_manager \
-     -e "SELECT id, name FROM PORTFOLIO;"
-   ```
-
+3. Copy the generated portfolio `id` from the response.
 4. Use that portfolio ID to create a holding with `POST /api/holdings`.
-5. Read or delete the holding using its returned `id`.
+5. List holdings with `GET /api/holdings?portfolio_id=1`.
+6. Read, update, or delete the holding using its returned `id`.
 
-The create-portfolio response currently does not return its generated ID, so
-the database query in step 3 is needed.
+The React client performs this workflow automatically and refreshes its state
+from MySQL after every successful mutation.

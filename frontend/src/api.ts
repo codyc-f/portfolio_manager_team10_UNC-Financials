@@ -1,0 +1,216 @@
+import type {
+  AssetType,
+  Holding,
+  HoldingDraft,
+  Portfolio,
+  PortfolioDraft,
+  TradeType,
+} from "./types";
+
+interface ApiErrorBody {
+  error?: string;
+}
+
+interface PortfolioResponse {
+  id: number;
+  name: string;
+  base_currency: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface HoldingResponse {
+  id: number;
+  portfolio_id: number;
+  ticker: string;
+  asset_name: string;
+  asset_type: string;
+  currency: string;
+  trade_type: TradeType;
+  quantity: number | string;
+  price_per_unit: number | string;
+  fee_amount: number | string;
+  traded_at: string;
+}
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+  } catch {
+    throw new ApiError(
+      "Unable to reach the API. Make sure Docker Compose is running.",
+      0,
+    );
+  }
+
+  const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
+  if (!response.ok) {
+    throw new ApiError(
+      body.error || `The request failed with status ${response.status}.`,
+      response.status,
+    );
+  }
+
+  return body as T;
+}
+
+function mapPortfolio(portfolio: PortfolioResponse): Portfolio {
+  return {
+    id: portfolio.id,
+    name: portfolio.name,
+    baseCurrency: portfolio.base_currency,
+    createdAt: portfolio.created_at,
+    updatedAt: portfolio.updated_at,
+  };
+}
+
+function normalizeAssetType(value: string): AssetType {
+  const normalized = value.toLowerCase();
+  const knownTypes: Record<string, AssetType> = {
+    stock: "Stock",
+    etf: "ETF",
+    bond: "Bond",
+    crypto: "Crypto",
+    cash: "Cash",
+  };
+  return knownTypes[normalized] ?? "Stock";
+}
+
+function toLocalDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.replace(" ", "T").slice(0, 16);
+  }
+
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    "-",
+    pad(date.getMonth() + 1),
+    "-",
+    pad(date.getDate()),
+    "T",
+    pad(date.getHours()),
+    ":",
+    pad(date.getMinutes()),
+  ].join("");
+}
+
+function mapHolding(holding: HoldingResponse): Holding {
+  return {
+    id: holding.id,
+    portfolioId: holding.portfolio_id,
+    ticker: holding.ticker,
+    assetName: holding.asset_name,
+    assetType: normalizeAssetType(holding.asset_type),
+    currency: holding.currency,
+    tradeType: holding.trade_type,
+    quantity: Number(holding.quantity),
+    pricePerUnit: Number(holding.price_per_unit),
+    feeAmount: Number(holding.fee_amount),
+    tradedAt: toLocalDateTime(holding.traded_at),
+  };
+}
+
+function holdingPayload(holding: HoldingDraft) {
+  const tradedAt = holding.tradedAt.replace("T", " ");
+  return {
+    portfolio_id: holding.portfolioId,
+    ticker: holding.ticker.trim().toUpperCase(),
+    asset_name: holding.assetName.trim(),
+    asset_type: holding.assetType.toUpperCase(),
+    currency: holding.currency.trim().toUpperCase(),
+    trade_type: holding.tradeType,
+    quantity: holding.quantity,
+    price_per_unit: holding.pricePerUnit,
+    fee_amount: holding.feeAmount,
+    traded_at: tradedAt.length === 16 ? `${tradedAt}:00` : tradedAt,
+  };
+}
+
+export const api = {
+  async listPortfolios() {
+    const portfolios = await request<PortfolioResponse[]>("/api/portfolios");
+    return portfolios.map(mapPortfolio);
+  },
+
+  async getPortfolio(id: number) {
+    const portfolio = await request<PortfolioResponse>(`/api/portfolios/${id}`);
+    return mapPortfolio(portfolio);
+  },
+
+  async createPortfolio(draft: PortfolioDraft) {
+    return request<PortfolioResponse>("/api/portfolios", {
+      method: "POST",
+      body: JSON.stringify({
+        name: draft.name.trim(),
+        base_currency: draft.baseCurrency.trim().toUpperCase(),
+      }),
+    });
+  },
+
+  async updatePortfolio(id: number, draft: PortfolioDraft) {
+    return request<PortfolioResponse>(`/api/portfolios/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: draft.name.trim(),
+        base_currency: draft.baseCurrency.trim().toUpperCase(),
+      }),
+    });
+  },
+
+  async deletePortfolio(id: number) {
+    return request<{ message: string }>(`/api/portfolios/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  async listHoldings(portfolioId: number) {
+    const holdings = await request<HoldingResponse[]>(
+      `/api/holdings?portfolio_id=${portfolioId}`,
+    );
+    return holdings.map(mapHolding);
+  },
+
+  async getHolding(id: number) {
+    const holding = await request<HoldingResponse>(`/api/holdings/${id}`);
+    return mapHolding(holding);
+  },
+
+  async createHolding(holding: HoldingDraft) {
+    return request<{ id: number; message: string }>("/api/holdings", {
+      method: "POST",
+      body: JSON.stringify(holdingPayload(holding)),
+    });
+  },
+
+  async updateHolding(id: number, holding: HoldingDraft) {
+    return request<{ id: number; message: string }>(`/api/holdings/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(holdingPayload(holding)),
+    });
+  },
+
+  async deleteHolding(id: number) {
+    return request<{ message: string }>(`/api/holdings/${id}`, {
+      method: "DELETE",
+    });
+  },
+};

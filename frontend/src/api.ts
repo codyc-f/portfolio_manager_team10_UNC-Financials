@@ -4,6 +4,7 @@ import type {
   HoldingDraft,
   Portfolio,
   PortfolioDraft,
+  StockOption,
   TradeType,
 } from "./types";
 
@@ -31,6 +32,12 @@ interface HoldingResponse {
   price_per_unit: number | string;
   fee_amount: number | string;
   traded_at: string;
+}
+
+interface StockOptionResponse {
+  ticker: string;
+  name?: string;
+  currentPrice?: number | string;
 }
 
 export class ApiError extends Error {
@@ -129,6 +136,14 @@ function mapHolding(holding: HoldingResponse): Holding {
   };
 }
 
+function mapStockOption(stock: StockOptionResponse): StockOption {
+  return {
+    ticker: stock.ticker,
+    name: stock.name || stock.ticker,
+    currentPrice: Number(stock.currentPrice ?? 0),
+  };
+}
+
 function holdingPayload(holding: HoldingDraft) {
   const tradedAt = holding.tradedAt.replace("T", " ");
   return {
@@ -146,6 +161,13 @@ function holdingPayload(holding: HoldingDraft) {
 }
 
 export const api = {
+  async listMostActiveStocks() {
+    const stocks = await request<StockOptionResponse[]>(
+      "/api/stocks/most-active",
+    );
+    return stocks.map(mapStockOption);
+  },
+
   async listPortfolios() {
     const portfolios = await request<PortfolioResponse[]>("/api/portfolios");
     return portfolios.map(mapPortfolio);

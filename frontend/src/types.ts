@@ -5,6 +5,7 @@ export interface Portfolio {
   id: number;
   name: string;
   baseCurrency: string;
+  balance: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -12,6 +13,7 @@ export interface Portfolio {
 export interface PortfolioDraft {
   name: string;
   baseCurrency: string;
+  balance: number;
 }
 
 export interface Holding {

@@ -118,7 +118,8 @@ curl -X POST http://localhost:5001/api/portfolios \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Retirement Portfolio",
-    "base_currency": "USD"
+    "base_currency": "USD",
+    "balance": 10000
   }'
 ```
 
@@ -129,12 +130,13 @@ Successful response (`201 Created`):
   "id": 1,
   "name": "Retirement Portfolio",
   "base_currency": "USD",
+  "balance": "10000.00",
   "message": "Portfolio created successfully"
 }
 ```
 
-Both `name` and `base_currency` are required. A missing field returns
-`400 Bad Request`.
+Both `name` and `base_currency` are required. `balance` is optional and defaults
+to `0.00`. A missing required field returns `400 Bad Request`.
 
 ### Get a portfolio
 
@@ -266,6 +268,7 @@ Successful response (`201 Created`):
 ```json
 {
   "id": 1,
+  "portfolio_balance": "7946.39",
   "message": "Successfully created holding with holding_id 1 & portfolio_id 1"
 }
 ```
@@ -284,6 +287,11 @@ Required fields:
 
 `fee_amount` is optional and defaults to `0.00`. When supplied, it must be
 zero or greater.
+
+Creating a holding also updates the portfolio cash balance in the same database
+transaction. A `BUY` subtracts `quantity * price_per_unit + fee_amount`; a
+`SELL` adds `quantity * price_per_unit - fee_amount`. A `BUY` that costs more
+than the available balance returns `400 Bad Request`.
 
 The endpoint returns `400 Bad Request` for missing required fields and
 `404 Not Found` when `portfolio_id` does not identify an existing portfolio.

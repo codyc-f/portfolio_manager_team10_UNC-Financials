@@ -39,7 +39,11 @@ import type {
 } from "./types";
 
 const assetTypes: AssetType[] = ["Stock", "ETF", "Bond", "Crypto", "Cash"];
-const emptyPortfolio: PortfolioDraft = { name: "", baseCurrency: "USD" };
+const emptyPortfolio: PortfolioDraft = {
+  name: "",
+  baseCurrency: "USD",
+  balance: 0,
+};
 
 function createEmptyHolding(portfolioId: number): HoldingDraft {
   const now = new Date();
@@ -269,6 +273,7 @@ export default function App() {
       }
       setHoldingFormOpen(false);
       await refreshHoldings(holdingDraft.portfolioId);
+      await refreshPortfolios(holdingDraft.portfolioId);
     } catch (error) {
       setMutationError(errorMessage(error));
     } finally {
@@ -305,6 +310,7 @@ export default function App() {
     setPortfolioDraft({
       name: selectedPortfolio.name,
       baseCurrency: selectedPortfolio.baseCurrency,
+      balance: selectedPortfolio.balance,
     });
     setMutationError("");
     setPortfolioFormOpen(true);
@@ -500,22 +506,32 @@ export default function App() {
             <MetricCard
               className="metric-card--primary"
               icon={<WalletCards size={20} />}
+              label="Cash balance"
+              value={formatCurrency(
+                selectedPortfolio?.balance ?? 0,
+                selectedPortfolio?.baseCurrency,
+              )}
+              note="Available funds for new buys"
+            />
+            <MetricCard
+              className="metric-card--blue"
+              icon={<CircleDollarSign size={20} />}
               label="Net invested"
               value={formatCurrency(
                 totals.invested,
                 selectedPortfolio?.baseCurrency,
               )}
-              note="Cost basis across all activity"
+              note="Open position cost basis"
             />
             <MetricCard
-              className="metric-card--blue"
-              icon={<CircleDollarSign size={20} />}
+              className="metric-card--amber"
+              icon={<BriefcaseBusiness size={20} />}
               label="Open assets"
               value={String(totals.positions)}
               note="Unique tickers in this portfolio"
             />
             <MetricCard
-              className="metric-card--amber"
+              className="metric-card--blue"
               icon={<Clock3 size={20} />}
               label="Total transactions"
               value={String(totals.transactions)}
@@ -764,6 +780,7 @@ function PortfolioForm({ draft, setDraft, onSubmit, submitting, error, submitLab
       {error && <FormError message={error} />}
       <label><span>Portfolio name</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="e.g. Growth Portfolio" maxLength={255} required autoFocus /></label>
       <label><span>Base currency</span><input value={draft.baseCurrency} onChange={(event) => setDraft({ ...draft, baseCurrency: event.target.value.toUpperCase() })} maxLength={3} pattern="[A-Za-z]{3}" required /></label>
+      <label><span>Cash balance</span><input type="number" value={draft.balance || ""} onChange={(event) => setDraft({ ...draft, balance: Number(event.target.value) })} min="0" step="0.01" placeholder="0.00" required /></label>
       <footer className="modal-footer">{cancel && <button className="secondary-button" type="button" onClick={cancel}>Cancel</button>}<button className="primary-button" disabled={submitting}>{submitting && <LoaderCircle className="spin" size={15} />}{submitLabel}</button></footer>
     </form>
   );

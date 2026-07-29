@@ -17,6 +17,7 @@ interface PortfolioResponse {
   id: number;
   name: string;
   base_currency: string;
+  balance: number | string;
   created_at?: string;
   updated_at?: string;
 }
@@ -98,6 +99,7 @@ function mapPortfolio(portfolio: PortfolioResponse): Portfolio {
     id: portfolio.id,
     name: portfolio.name,
     baseCurrency: portfolio.base_currency,
+    balance: Number(portfolio.balance),
     createdAt: portfolio.created_at,
     updatedAt: portfolio.updated_at,
   };
@@ -219,6 +221,7 @@ export const api = {
       body: JSON.stringify({
         name: draft.name.trim(),
         base_currency: draft.baseCurrency.trim().toUpperCase(),
+        balance: draft.balance,
       }),
     });
   },
@@ -229,6 +232,7 @@ export const api = {
       body: JSON.stringify({
         name: draft.name.trim(),
         base_currency: draft.baseCurrency.trim().toUpperCase(),
+        balance: draft.balance,
       }),
     });
   },

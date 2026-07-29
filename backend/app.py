@@ -155,6 +155,9 @@ def validate_portfolio_payload(data):
     if not is_currency_code(data["base_currency"]):
         return "'base_currency' must be a 3-letter uppercase currency code"
 
+    if not is_number_in_range(data.get("balance", 0), 0):
+        return "'balance' must be a non-negative number"
+
     return None
 
 
@@ -397,7 +400,7 @@ def list_portfolios():
               example: Database error
     """
     sql = """
-        SELECT id, name, base_currency, created_at, updated_at
+        SELECT id, name, base_currency, balance, created_at, updated_at
         FROM PORTFOLIO
         ORDER BY created_at ASC, id ASC
     """
@@ -476,14 +479,18 @@ def create_portfolio():
 
     name = data["name"]
     base_currency = data["base_currency"]
+    balance = data.get("balance", 0.00)
 
-    sql = "INSERT INTO PORTFOLIO (name, base_currency) VALUES (%s, %s)"
+    sql = """
+        INSERT INTO PORTFOLIO (name, base_currency, balance)
+        VALUES (%s, %s, %s)
+    """
 
     try:
         with get_connection() as connection:
             try:
                 with connection.cursor() as cursor:
-                    cursor.execute(sql, (name, base_currency))
+                    cursor.execute(sql, (name, base_currency, balance))
                     portfolio_id = cursor.lastrowid
                     connection.commit()
             except mysql.connector.Error as error:
@@ -496,6 +503,7 @@ def create_portfolio():
         "id": portfolio_id,
         "name": name.strip(),
         "base_currency": base_currency,
+        "balance": str(Decimal(str(balance)).quantize(Decimal("0.01"))),
         "message": "Portfolio created successfully",
     }), 201
 
@@ -553,7 +561,11 @@ def get_portfolio(portfolio_id):
               example: Database error
     """
     # Use the %s placeholder for the WHERE clause to prevent SQL injection
-    sql = "SELECT id, name, base_currency, created_at, updated_at FROM PORTFOLIO WHERE id = %s"
+    sql = """
+        SELECT id, name, base_currency, balance, created_at, updated_at
+        FROM PORTFOLIO
+        WHERE id = %s
+    """
 
     try:
         with get_connection() as connection:
@@ -658,7 +670,7 @@ def update_portfolio(portfolio_id):
 
     sql = """
         UPDATE PORTFOLIO
-        SET name = %s, base_currency = %s
+        SET name = %s, base_currency = %s, balance = %s
         WHERE id = %s
     """
     try:
@@ -674,7 +686,12 @@ def update_portfolio(portfolio_id):
 
                     cursor.execute(
                         sql,
-                        (data["name"].strip(), data["base_currency"], portfolio_id),
+                        (
+                            data["name"].strip(),
+                            data["base_currency"],
+                            data.get("balance", 0.00),
+                            portfolio_id,
+                        ),
                     )
                     connection.commit()
             except mysql.connector.Error as error:
@@ -687,6 +704,9 @@ def update_portfolio(portfolio_id):
         "id": int(portfolio_id),
         "name": data["name"].strip(),
         "base_currency": data["base_currency"],
+        "balance": str(
+            Decimal(str(data.get("balance", 0.00))).quantize(Decimal("0.01"))
+        ),
         "message": "Portfolio updated successfully",
     }), 200
 
@@ -1119,21 +1139,44 @@ def create_holding():
         data.get("fee_amount", 0.00),
         data["traded_at"],
     )
+    quantity = Decimal(str(data["quantity"]))
+    price_per_unit = Decimal(str(data["price_per_unit"]))
+    fee_amount = Decimal(str(data.get("fee_amount", 0.00)))
+    trade_value = quantity * price_per_unit
+    balance_delta = (
+        -(trade_value + fee_amount)
+        if data["trade_type"] == "BUY"
+        else trade_value - fee_amount
+    )
 
     try:
         with get_connection() as connection:
             try:
-                with connection.cursor() as cursor:
+                with connection.cursor(dictionary=True) as cursor:
                     # Give a clear response instead of relying on a foreign-key error.
                     cursor.execute(
-                        "SELECT id FROM PORTFOLIO WHERE id = %s",
+                        "SELECT id, balance FROM PORTFOLIO WHERE id = %s",
                         (data["portfolio_id"],),
                     )
-                    if cursor.fetchone() is None:
+                    portfolio = cursor.fetchone()
+                    if portfolio is None:
                         return jsonify({"error": "Portfolio not found"}), 404
+
+                    next_balance = portfolio["balance"] + balance_delta
+                    if next_balance < 0:
+                        return jsonify({
+                            "error": "Insufficient portfolio balance for this BUY"
+                        }), 400
 
                     cursor.execute(sql, values)
                     holding_id = cursor.lastrowid
+                    cursor.execute(
+                        "UPDATE PORTFOLIO SET balance = %s WHERE id = %s",
+                        (
+                            next_balance.quantize(Decimal("0.01")),
+                            data["portfolio_id"],
+                        ),
+                    )
                     connection.commit()
             except mysql.connector.Error as error:
                 connection.rollback()
@@ -1143,6 +1186,7 @@ def create_holding():
 
     return jsonify({
         "id": holding_id,
+        "portfolio_balance": str(next_balance.quantize(Decimal("0.01"))),
         "message": f"Successfully created holding with holding_id {holding_id} & portfolio_id {data['portfolio_id']}",
     }), 201
 

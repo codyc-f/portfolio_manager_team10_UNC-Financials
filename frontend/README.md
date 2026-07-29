@@ -5,15 +5,28 @@ MySQL backend.
 
 ## Run locally
 
-Start Docker Compose from the repository root first. Then:
+The normal full-stack workflow runs the frontend in Docker:
 
 ```powershell
+docker compose up --build
+```
+
+Open `http://localhost:5173`.
+
+The frontend image uses a Node build stage to compile React and an Nginx stage
+to serve the production files. Nginx forwards `/api` requests to the internal
+Compose service named `api`, so the browser never needs the Docker network
+hostname.
+
+For frontend hot-reload development, start only the backend services and run
+Vite locally:
+
+```powershell
+docker compose up mysql db-init api
 cd frontend
 npm install
 npm run dev
 ```
-
-Open `http://localhost:5173`.
 
 ## Architecture
 

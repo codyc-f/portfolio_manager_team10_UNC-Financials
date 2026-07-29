@@ -193,7 +193,42 @@ def hello():
 
 @app.route("/api/portfolios", methods=["GET"])
 def list_portfolios():
-    """Return every portfolio, ordered by creation date."""
+    """List all portfolios.
+    ---
+    tags:
+      - Portfolios
+    responses:
+      200:
+        description: Portfolios ordered by creation date.
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              name:
+                type: string
+                example: Retirement Portfolio
+              base_currency:
+                type: string
+                example: USD
+              created_at:
+                type: string
+                example: '2026-07-27 14:30:00'
+              updated_at:
+                type: string
+                example: '2026-07-27 14:30:00'
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
+    """
     sql = """
         SELECT id, name, base_currency, created_at, updated_at
         FROM PORTFOLIO
@@ -374,7 +409,81 @@ def get_portfolio(portfolio_id):
 
 @app.route("/api/portfolios/<portfolio_id>", methods=["PUT"])
 def update_portfolio(portfolio_id):
-    """Update the name and base currency of an existing portfolio."""
+    """Update a portfolio.
+    ---
+    tags:
+      - Portfolios
+    parameters:
+      - name: portfolio_id
+        in: path
+        description: ID of the portfolio to update.
+        required: true
+        type: integer
+        minimum: 1
+      - in: body
+        name: portfolio
+        description: Replacement portfolio values.
+        required: true
+        schema:
+          type: object
+          required:
+            - name
+            - base_currency
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+              example: Updated Retirement Portfolio
+            base_currency:
+              type: string
+              minLength: 3
+              maxLength: 3
+              pattern: '^[A-Z]{3}$'
+              example: USD
+    responses:
+      200:
+        description: Portfolio updated successfully.
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            name:
+              type: string
+              example: Updated Retirement Portfolio
+            base_currency:
+              type: string
+              example: USD
+            message:
+              type: string
+              example: Portfolio updated successfully
+      400:
+        description: The JSON body or one of its fields is invalid.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Missing required fields
+      404:
+        description: The portfolio does not exist.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Portfolio not found
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
+    """
     data = request.get_json(silent=True)
     validation_error = validate_portfolio_payload(data)
     if validation_error:
@@ -491,7 +600,89 @@ def delete_portfolio(portfolio_id):
 
 @app.route("/api/holdings", methods=["GET"])
 def list_holdings():
-    """Return holdings for the portfolio specified by ``portfolio_id``."""
+    """List holdings for a portfolio.
+    ---
+    tags:
+      - Holdings
+    parameters:
+      - name: portfolio_id
+        in: query
+        description: ID of the portfolio whose holdings should be returned.
+        required: true
+        type: integer
+        minimum: 1
+    responses:
+      200:
+        description: Holding transactions ordered by trade date, newest first.
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              portfolio_id:
+                type: integer
+                example: 1
+              ticker:
+                type: string
+                example: AAPL
+              asset_name:
+                type: string
+                example: Apple Inc.
+              asset_type:
+                type: string
+                example: STOCK
+              currency:
+                type: string
+                example: USD
+              trade_type:
+                type: string
+                enum:
+                  - BUY
+                  - SELL
+                example: BUY
+              quantity:
+                type: string
+                example: '10.500000'
+              price_per_unit:
+                type: string
+                example: '195.25'
+              fee_amount:
+                type: string
+                example: '2.99'
+              traded_at:
+                type: string
+                example: '2026-07-27 14:30:00'
+              created_at:
+                type: string
+                example: '2026-07-27 14:30:00'
+      400:
+        description: The portfolio_id query parameter is missing or invalid.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "'portfolio_id' query parameter must be a positive integer"
+      404:
+        description: The portfolio does not exist.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Portfolio not found
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
+    """
     portfolio_id = request.args.get("portfolio_id", type=int)
     if portfolio_id is None or portfolio_id <= 0:
         return jsonify({
@@ -821,7 +1012,123 @@ def get_holding(holding_id):
 
 @app.route("/api/holdings/<holding_id>", methods=["PUT"])
 def update_holding(holding_id):
-    """Replace an existing holding transaction with validated values."""
+    """Update a holding transaction.
+    ---
+    tags:
+      - Holdings
+    parameters:
+      - name: holding_id
+        in: path
+        description: ID of the holding transaction to update.
+        required: true
+        type: integer
+        minimum: 1
+      - in: body
+        name: holding
+        description: Complete replacement values for the holding transaction.
+        required: true
+        schema:
+          type: object
+          required:
+            - portfolio_id
+            - ticker
+            - asset_name
+            - asset_type
+            - currency
+            - trade_type
+            - quantity
+            - price_per_unit
+            - traded_at
+          properties:
+            portfolio_id:
+              type: integer
+              minimum: 1
+              example: 1
+            ticker:
+              type: string
+              minLength: 1
+              maxLength: 20
+              example: AAPL
+            asset_name:
+              type: string
+              minLength: 1
+              maxLength: 255
+              example: Apple Inc.
+            asset_type:
+              type: string
+              minLength: 1
+              maxLength: 50
+              example: STOCK
+            currency:
+              type: string
+              minLength: 3
+              maxLength: 3
+              pattern: '^[A-Z]{3}$'
+              example: USD
+            trade_type:
+              type: string
+              enum:
+                - BUY
+                - SELL
+              example: BUY
+            quantity:
+              type: number
+              format: decimal
+              minimum: 0.000001
+              example: 10.5
+            price_per_unit:
+              type: number
+              format: decimal
+              minimum: 0
+              example: 195.25
+            fee_amount:
+              type: number
+              format: decimal
+              minimum: 0
+              default: 0
+              example: 2.99
+            traded_at:
+              type: string
+              description: MySQL datetime in YYYY-MM-DD HH:MM:SS format.
+              pattern: '^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$'
+              example: '2026-07-27 14:30:00'
+    responses:
+      200:
+        description: Holding transaction updated successfully.
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            message:
+              type: string
+              example: Holding updated successfully
+      400:
+        description: The JSON body or one of its fields is invalid.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Missing required fields
+      404:
+        description: The holding or referenced portfolio does not exist.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Holding not found
+      500:
+        description: A database operation failed.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Database error
+    """
     data = request.get_json(silent=True)
     validation_error = validate_holding_payload(data)
     if validation_error:

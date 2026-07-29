@@ -7,22 +7,20 @@ visual placeholders until market-data features are added.
 
 ## Start the application
 
-Start MySQL and Flask from the repository root:
+Build and start the React frontend, Flask API, and MySQL from the repository
+root:
 
 ```powershell
 docker compose up --build
 ```
 
-In a second terminal, start React:
+Open `http://localhost:5173`. Swagger remains available at
+`http://localhost:5001/apidocs/`. On a new database, the application asks you
+to create a portfolio before showing the holdings workspace.
 
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173`. On a new database, the application asks you to
-create a portfolio before showing the holdings workspace.
+For frontend-only development with Vite hot reload, keep Docker running and
+run `npm run dev` from `frontend/`. Stop the Compose `frontend` service first
+to free port `5173`.
 
 ## How the connection works
 

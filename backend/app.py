@@ -6,6 +6,8 @@ from flask import Flask, jsonify, request
 import mysql.connector
 
 from db_test_connection import get_connection
+from helper_functions import get_current_price
+from helper_functions import get_top_20_stocks
 
 app = Flask(__name__)
 

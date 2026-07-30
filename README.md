@@ -2,8 +2,8 @@
 
 UNC Financials is a React, Flask, and MySQL portfolio manager. The current
 release supports complete CRUD workflows for portfolios and holding
-transactions. Performance, allocation, overview, and activity screens remain
-visual placeholders until market-data features are added.
+transactions, current-value allocation, one-month portfolio performance, and
+recent market news. Overview and activity screens remain visual placeholders.
 
 ## Start the application
 
@@ -41,6 +41,11 @@ source of truth instead of pretending a change succeeded locally.
 | --- | --- | --- | --- | --- |
 | Portfolios | `POST /api/portfolios` | `GET /api/portfolios`, `GET /api/portfolios/<id>` | `PUT /api/portfolios/<id>` | `DELETE /api/portfolios/<id>` |
 | Holdings | `POST /api/holdings` | `GET /api/holdings?portfolio_id=<id>`, `GET /api/holdings/<id>` | `PUT /api/holdings/<id>` | `DELETE /api/holdings/<id>` |
+
+Allocation reuses the current `market_value` returned by the positions
+endpoint. Performance applies current open quantities to one month of Yahoo
+Finance daily closing prices. This is a useful estimate, not a transaction-date
+reconstruction; it excludes cash and historical quantity changes.
 
 Deleting a portfolio with holding transactions returns `409 Conflict`. Remove
 its holdings first so the database foreign-key relationship stays valid.

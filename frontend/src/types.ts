@@ -51,3 +51,23 @@ export interface StockOption {
   name: string;
   currentPrice: number;
 }
+
+export interface PerformancePoint {
+  date: string;
+  value: number;
+}
+
+export interface PortfolioPerformance {
+  currency: string;
+  period: string;
+  points: PerformancePoint[];
+}
+
+export interface NewsArticle {
+  headline: string;
+  publisher: string;
+  publishedAt: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  url: string;
+}

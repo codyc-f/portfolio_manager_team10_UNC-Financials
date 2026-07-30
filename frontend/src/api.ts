@@ -2,9 +2,11 @@ import type {
   AssetType,
   Holding,
   HoldingDraft,
+  NewsArticle,
   Position,
   Portfolio,
   PortfolioDraft,
+  PortfolioPerformance,
   StockOption,
   TradeType,
 } from "./types";
@@ -54,6 +56,24 @@ interface StockOptionResponse {
   ticker: string;
   name?: string;
   currentPrice?: number | string;
+}
+
+interface PerformanceResponse {
+  currency: string;
+  period: string;
+  points: Array<{
+    date: string;
+    value: number | string;
+  }>;
+}
+
+interface NewsArticleResponse {
+  headline: string;
+  publisher: string;
+  published_at: string | null;
+  description: string | null;
+  image_url: string | null;
+  url: string;
 }
 
 export class ApiError extends Error {
@@ -205,6 +225,18 @@ export const api = {
     return stocks.map(mapStockOption);
   },
 
+  async listMarketNews(): Promise<NewsArticle[]> {
+    const articles = await request<NewsArticleResponse[]>("/api/stocks/news");
+    return articles.map((article) => ({
+      headline: article.headline,
+      publisher: article.publisher,
+      publishedAt: article.published_at,
+      description: article.description,
+      imageUrl: article.image_url,
+      url: article.url,
+    }));
+  },
+
   async listPortfolios() {
     const portfolios = await request<PortfolioResponse[]>("/api/portfolios");
     return portfolios.map(mapPortfolio);
@@ -255,6 +287,22 @@ export const api = {
       `/api/portfolios/${portfolioId}/positions`,
     );
     return positions.map(mapPosition);
+  },
+
+  async getPortfolioPerformance(
+    portfolioId: number,
+  ): Promise<PortfolioPerformance> {
+    const performance = await request<PerformanceResponse>(
+      `/api/portfolios/${portfolioId}/performance`,
+    );
+    return {
+      currency: performance.currency,
+      period: performance.period,
+      points: performance.points.map((point) => ({
+        date: point.date,
+        value: Number(point.value),
+      })),
+    };
   },
 
   async getHolding(id: number) {

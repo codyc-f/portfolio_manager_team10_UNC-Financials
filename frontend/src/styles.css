@@ -452,6 +452,18 @@ tbody tr:hover { background: #fbfdfc; }
 }
 .row-actions button:hover { color: #2d78a6; background: #ebf4fa; }
 .row-actions .danger-action:hover { color: var(--danger); background: #fbeded; }
+.row-actions .sell-action {
+  width: auto;
+  padding: 0 10px;
+  color: #19764a;
+  background: #edf8f2;
+  font-size: 9px;
+  font-weight: 800;
+}
+.row-actions .sell-action:hover {
+  color: #125b38;
+  background: #dff3e8;
+}
 .table-footer {
   min-height: 49px;
   display: flex;

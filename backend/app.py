@@ -1168,6 +1168,52 @@ def create_holding():
                             "error": "Insufficient portfolio balance for this BUY"
                         }), 400
 
+                    if data["trade_type"] == "SELL":
+                        cursor.execute(
+                            """
+                            SELECT
+                                ticker,
+                                asset_name,
+                                asset_type,
+                                currency,
+                                trade_type,
+                                quantity,
+                                price_per_unit,
+                                fee_amount
+                            FROM HOLDING
+                            WHERE portfolio_id = %s
+                              AND ticker = %s
+                              AND currency = %s
+                            ORDER BY traded_at ASC, id ASC
+                            """,
+                            (
+                                data["portfolio_id"],
+                                data["ticker"],
+                                data["currency"],
+                            ),
+                        )
+                        current_positions = build_positions_from_transactions(
+                            cursor.fetchall()
+                        )
+                        current_position = next(
+                            (
+                                position for position in current_positions
+                                if (
+                                    position["ticker"] == data["ticker"]
+                                    and position["currency"] == data["currency"]
+                                )
+                            ),
+                            None,
+                        )
+                        quantity_owned = (
+                            Decimal(str(current_position["quantity_owned"]))
+                            if current_position else Decimal("0")
+                        )
+                        if quantity_owned < quantity:
+                            return jsonify({
+                                "error": "Cannot sell more shares than owned"
+                            }), 400
+
                     cursor.execute(sql, values)
                     holding_id = cursor.lastrowid
                     cursor.execute(

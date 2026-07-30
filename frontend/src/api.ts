@@ -2,8 +2,10 @@ import type {
   AssetType,
   Holding,
   HoldingDraft,
+  Position,
   Portfolio,
   PortfolioDraft,
+  StockOption,
   TradeType,
 } from "./types";
 
@@ -15,6 +17,7 @@ interface PortfolioResponse {
   id: number;
   name: string;
   base_currency: string;
+  balance: number | string;
   created_at?: string;
   updated_at?: string;
 }
@@ -31,6 +34,26 @@ interface HoldingResponse {
   price_per_unit: number | string;
   fee_amount: number | string;
   traded_at: string;
+}
+
+interface PositionResponse {
+  ticker: string;
+  asset_name: string;
+  asset_type: string;
+  currency: string;
+  quantity_owned: number | string;
+  average_cost: number | string;
+  cost_basis: number | string;
+  current_price: number | string | null;
+  market_value: number | string | null;
+  unrealized_gain: number | string | null;
+  unrealized_gain_percent: number | string | null;
+}
+
+interface StockOptionResponse {
+  ticker: string;
+  name?: string;
+  currentPrice?: number | string;
 }
 
 export class ApiError extends Error {
@@ -76,6 +99,7 @@ function mapPortfolio(portfolio: PortfolioResponse): Portfolio {
     id: portfolio.id,
     name: portfolio.name,
     baseCurrency: portfolio.base_currency,
+    balance: Number(portfolio.balance),
     createdAt: portfolio.created_at,
     updatedAt: portfolio.updated_at,
   };
@@ -129,6 +153,34 @@ function mapHolding(holding: HoldingResponse): Holding {
   };
 }
 
+function nullableNumber(value: number | string | null) {
+  return value === null ? null : Number(value);
+}
+
+function mapPosition(position: PositionResponse): Position {
+  return {
+    ticker: position.ticker,
+    assetName: position.asset_name,
+    assetType: normalizeAssetType(position.asset_type),
+    currency: position.currency,
+    quantityOwned: Number(position.quantity_owned),
+    averageCost: Number(position.average_cost),
+    costBasis: Number(position.cost_basis),
+    currentPrice: nullableNumber(position.current_price),
+    marketValue: nullableNumber(position.market_value),
+    unrealizedGain: nullableNumber(position.unrealized_gain),
+    unrealizedGainPercent: nullableNumber(position.unrealized_gain_percent),
+  };
+}
+
+function mapStockOption(stock: StockOptionResponse): StockOption {
+  return {
+    ticker: stock.ticker,
+    name: stock.name || stock.ticker,
+    currentPrice: Number(stock.currentPrice ?? 0),
+  };
+}
+
 function holdingPayload(holding: HoldingDraft) {
   const tradedAt = holding.tradedAt.replace("T", " ");
   return {
@@ -146,6 +198,13 @@ function holdingPayload(holding: HoldingDraft) {
 }
 
 export const api = {
+  async listMostActiveStocks() {
+    const stocks = await request<StockOptionResponse[]>(
+      "/api/stocks/most-active",
+    );
+    return stocks.map(mapStockOption);
+  },
+
   async listPortfolios() {
     const portfolios = await request<PortfolioResponse[]>("/api/portfolios");
     return portfolios.map(mapPortfolio);
@@ -162,6 +221,7 @@ export const api = {
       body: JSON.stringify({
         name: draft.name.trim(),
         base_currency: draft.baseCurrency.trim().toUpperCase(),
+        balance: draft.balance,
       }),
     });
   },
@@ -172,6 +232,7 @@ export const api = {
       body: JSON.stringify({
         name: draft.name.trim(),
         base_currency: draft.baseCurrency.trim().toUpperCase(),
+        balance: draft.balance,
       }),
     });
   },
@@ -187,6 +248,13 @@ export const api = {
       `/api/holdings?portfolio_id=${portfolioId}`,
     );
     return holdings.map(mapHolding);
+  },
+
+  async listPositions(portfolioId: number) {
+    const positions = await request<PositionResponse[]>(
+      `/api/portfolios/${portfolioId}/positions`,
+    );
+    return positions.map(mapPosition);
   },
 
   async getHolding(id: number) {

@@ -5,6 +5,7 @@ export interface Portfolio {
   id: number;
   name: string;
   baseCurrency: string;
+  balance: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -12,6 +13,7 @@ export interface Portfolio {
 export interface PortfolioDraft {
   name: string;
   baseCurrency: string;
+  balance: number;
 }
 
 export interface Holding {
@@ -29,3 +31,23 @@ export interface Holding {
 }
 
 export type HoldingDraft = Omit<Holding, "id">;
+
+export interface Position {
+  ticker: string;
+  assetName: string;
+  assetType: AssetType;
+  currency: string;
+  quantityOwned: number;
+  averageCost: number;
+  costBasis: number;
+  currentPrice: number | null;
+  marketValue: number | null;
+  unrealizedGain: number | null;
+  unrealizedGainPercent: number | null;
+}
+
+export interface StockOption {
+  ticker: string;
+  name: string;
+  currentPrice: number;
+}

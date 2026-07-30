@@ -1,7 +1,7 @@
 # UNC Financials Frontend
 
-Responsive React + TypeScript holdings workspace connected to the Flask and
-MySQL backend.
+Responsive React + TypeScript portfolio workspace connected to the Flask and
+MySQL backend. Holdings, Allocation, and Performance are active pages.
 
 ## Run locally
 
@@ -33,7 +33,8 @@ npm run dev
 - `src/api.ts` owns HTTP requests and converts backend `snake_case` responses
   into frontend `camelCase` types.
 - `src/App.tsx` owns portfolio selection, loading states, forms, filters, and
-  refreshes after mutations.
+  refreshes after mutations. Allocation uses positions returned by the backend;
+  Performance loads one-month history and recent Yahoo Finance news.
 - `vite.config.ts` proxies relative `/api` requests to
   `http://127.0.0.1:5001`, so local browser requests do not require CORS.
 - MySQL is the source of truth. The application no longer stores holdings in
@@ -52,3 +53,12 @@ For example, editing a holding follows this path:
 
 Forms remain open when validation or network requests fail, and repeated
 submissions are disabled until the current request completes.
+
+## Market-data pages
+
+- Allocation calls the existing positions endpoint and uses each position's
+  backend-calculated `marketValue`; the component does not repeat holding math.
+- Performance calls `/api/portfolios/<id>/performance` and renders the returned
+  daily values with a small native SVG chart.
+- Recent news calls `/api/stocks/news`. Links open the original article and no
+  Yahoo credentials or secrets are sent to the browser.

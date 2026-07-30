@@ -2,7 +2,12 @@ from flasgger import Swagger
 from flask import Flask, jsonify, request
 
 from services.errors import ServiceError
-from services import holding_service, portfolio_service, stock_service
+from services import (
+    holding_service,
+    performance_service,
+    portfolio_service,
+    stock_service,
+)
 from validators import validate_holding_payload, validate_portfolio_payload
 
 app = Flask(__name__)
@@ -113,6 +118,26 @@ def get_stock_price(ticker):
         return jsonify({"error": error.message}), error.status_code
 
     return jsonify(price), 200
+
+
+@app.route("/api/stocks/news", methods=["GET"])
+def list_stock_news():
+    """List recent general stock-market news.
+    ---
+    tags:
+      - Market Data
+    responses:
+      200:
+        description: Recent market news from Yahoo Finance.
+      502:
+        description: Market data provider could not be reached.
+    """
+    try:
+        news = stock_service.list_market_news()
+    except ServiceError as error:
+        return jsonify({"error": error.message}), error.status_code
+
+    return jsonify(news), 200
 
 
 @app.route("/api/portfolios", methods=["GET"])
@@ -567,6 +592,47 @@ def list_portfolio_positions(portfolio_id):
         return jsonify({"error": error.message}), error.status_code
 
     return jsonify(positions), 200
+
+
+@app.route("/api/portfolios/<portfolio_id>/performance", methods=["GET"])
+def get_portfolio_performance(portfolio_id):
+    """Get one month of market value for the portfolio's current positions.
+    ---
+    tags:
+      - Portfolios
+      - Market Data
+    parameters:
+      - name: portfolio_id
+        in: path
+        required: true
+        type: integer
+        minimum: 1
+    responses:
+      200:
+        description: Daily portfolio market-value points.
+      400:
+        description: The portfolio ID is invalid.
+      404:
+        description: The portfolio does not exist.
+      409:
+        description: Holding transactions imply a negative position.
+      502:
+        description: Historical prices could not be loaded.
+    """
+    try:
+        portfolio_id = int(portfolio_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "'portfolio_id' must be a positive integer"}), 400
+
+    if portfolio_id <= 0:
+        return jsonify({"error": "'portfolio_id' must be a positive integer"}), 400
+
+    try:
+        performance = performance_service.get_portfolio_performance(portfolio_id)
+    except ServiceError as error:
+        return jsonify({"error": error.message}), error.status_code
+
+    return jsonify(performance), 200
 
 
 @app.route("/api/holdings", methods=["POST"])

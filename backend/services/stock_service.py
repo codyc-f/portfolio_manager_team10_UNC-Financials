@@ -1,4 +1,4 @@
-from market_data import get_current_price, get_top_20_stocks
+from market_data import get_current_price, get_market_news, get_top_20_stocks
 from services.errors import BadRequestError, ExternalServiceError
 
 
@@ -23,3 +23,10 @@ def get_stock_price(ticker):
         "ticker": ticker,
         "current_price": current_price,
     }
+
+
+def list_market_news():
+    try:
+        return get_market_news()
+    except Exception as error:
+        raise ExternalServiceError("Unable to load market news") from error

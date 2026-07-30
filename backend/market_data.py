@@ -1,26 +1,5 @@
 import yfinance as yf
 
-def get_required_fields(db, database_name, table_name):
-    """Return columns that must be provided when inserting into a table."""
-    cursor = db.cursor(dictionary=True)
-
-    sql = """
-        SELECT COLUMN_NAME
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = %s
-          AND TABLE_NAME = %s
-          AND IS_NULLABLE = 'NO'
-          AND COLUMN_DEFAULT IS NULL
-          AND EXTRA NOT LIKE '%%auto_increment%%'
-          AND EXTRA NOT LIKE '%%DEFAULT_GENERATED%%'
-    """
-
-    cursor.execute(sql, (database_name, table_name))
-    fields = {row["COLUMN_NAME"] for row in cursor.fetchall()}
-    cursor.close()
-
-    return fields
-
 
 def get_current_price(ticker):
     """Return the latest available market price for a ticker."""
@@ -41,8 +20,6 @@ def get_current_price(ticker):
 
     return round(float(current_price), 2)
 
-#print(get_current_price("AAPL"))
-
 
 def get_top_20_stocks():
     """Return information about the 20 most actively traded US stocks."""
@@ -57,5 +34,3 @@ def get_top_20_stocks():
         for stock in response["quotes"]
         if stock.get("symbol")
     ]
-
-#print(get_top_20_stocks())

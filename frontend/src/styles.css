@@ -425,6 +425,19 @@ tbody tr:hover { background: #fbfdfc; }
 .trade-pill--buy { color: #286f9b; background: #e7f3fb; }
 .trade-pill--sell { color: #a14a4a; background: #fbecec; }
 .value-cell { color: #293e41; font-weight: 700; }
+.gain-loss {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 800;
+}
+.gain-loss small {
+  font-size: 9px;
+  font-weight: 700;
+}
+.gain-loss--gain { color: #19764a; }
+.gain-loss--loss { color: #bd4b4b; }
+.gain-loss--neutral { color: #526568; }
 .row-actions { display: flex; align-items: center; gap: 3px; }
 .row-actions button {
   width: 29px;
@@ -439,6 +452,18 @@ tbody tr:hover { background: #fbfdfc; }
 }
 .row-actions button:hover { color: #2d78a6; background: #ebf4fa; }
 .row-actions .danger-action:hover { color: var(--danger); background: #fbeded; }
+.row-actions .sell-action {
+  width: auto;
+  padding: 0 10px;
+  color: #19764a;
+  background: #edf8f2;
+  font-size: 9px;
+  font-weight: 800;
+}
+.row-actions .sell-action:hover {
+  color: #125b38;
+  background: #dff3e8;
+}
 .table-footer {
   min-height: 49px;
   display: flex;

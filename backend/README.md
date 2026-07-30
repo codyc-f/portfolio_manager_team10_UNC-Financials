@@ -85,11 +85,13 @@ header is included in each `curl` command.
 | `GET` | `/api/portfolios/<portfolio_id>` | Get one portfolio | `200` |
 | `PUT` | `/api/portfolios/<portfolio_id>` | Update a portfolio | `200` |
 | `DELETE` | `/api/portfolios/<portfolio_id>` | Delete one portfolio | `200` |
+| `GET` | `/api/portfolios/<portfolio_id>/positions` | List active grouped positions | `200` |
 | `GET` | `/api/holdings?portfolio_id=<id>` | List portfolio holdings | `200` |
 | `POST` | `/api/holdings` | Record a holding transaction | `201` |
 | `GET` | `/api/holdings/<holding_id>` | Get one holding transaction | `200` |
 | `PUT` | `/api/holdings/<holding_id>` | Update a holding transaction | `200` |
 | `DELETE` | `/api/holdings/<holding_id>` | Delete one holding transaction | `200` |
+| `GET` | `/api/stocks/<ticker>/price` | Get latest stock price | `200` |
 
 ### Check the API
 
@@ -116,7 +118,8 @@ curl -X POST http://localhost:5001/api/portfolios \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Retirement Portfolio",
-    "base_currency": "USD"
+    "base_currency": "USD",
+    "balance": 10000
   }'
 ```
 
@@ -127,12 +130,13 @@ Successful response (`201 Created`):
   "id": 1,
   "name": "Retirement Portfolio",
   "base_currency": "USD",
+  "balance": "10000.00",
   "message": "Portfolio created successfully"
 }
 ```
 
-Both `name` and `base_currency` are required. A missing field returns
-`400 Bad Request`.
+Both `name` and `base_currency` are required. `balance` is optional and defaults
+to `0.00`. A missing required field returns `400 Bad Request`.
 
 ### Get a portfolio
 
@@ -182,6 +186,55 @@ The endpoint returns `404 Not Found` if the portfolio does not exist. A
 portfolio referenced by a holding cannot be deleted until its holdings are
 deleted because `HOLDING.portfolio_id` is a foreign key.
 
+### List active positions
+
+This endpoint groups holding transactions into one active position row per
+ticker and currency. It uses weighted average cost basis and calls Yahoo Finance
+through `get_current_price()` to calculate market value and unrealized gain.
+
+```bash
+curl http://localhost:5001/api/portfolios/1/positions
+```
+
+Successful response (`200 OK`):
+
+```json
+[
+  {
+    "ticker": "AAPL",
+    "asset_name": "Apple Inc.",
+    "asset_type": "STOCK",
+    "currency": "USD",
+    "quantity_owned": 31.5,
+    "average_cost": 165.37,
+    "cost_basis": 5209.1,
+    "current_price": 210.25,
+    "market_value": 6622.88,
+    "unrealized_gain": 1413.78,
+    "unrealized_gain_percent": 27.14
+  }
+]
+```
+
+If transactions imply a negative position, such as selling more shares than the
+portfolio owns, the endpoint returns `409 Conflict`. If market data cannot be
+loaded, the endpoint returns `502 Bad Gateway`.
+
+### Get a stock price
+
+```bash
+curl http://localhost:5001/api/stocks/AAPL/price
+```
+
+Successful response (`200 OK`):
+
+```json
+{
+  "ticker": "AAPL",
+  "current_price": 210.25
+}
+```
+
 ### Create a holding
 
 Each holding row records one `BUY` or `SELL` transaction. The referenced
@@ -215,6 +268,7 @@ Successful response (`201 Created`):
 ```json
 {
   "id": 1,
+  "portfolio_balance": "7946.39",
   "message": "Successfully created holding with holding_id 1 & portfolio_id 1"
 }
 ```
@@ -233,6 +287,11 @@ Required fields:
 
 `fee_amount` is optional and defaults to `0.00`. When supplied, it must be
 zero or greater.
+
+Creating a holding also updates the portfolio cash balance in the same database
+transaction. A `BUY` subtracts `quantity * price_per_unit + fee_amount`; a
+`SELL` adds `quantity * price_per_unit - fee_amount`. A `BUY` that costs more
+than the available balance returns `400 Bad Request`.
 
 The endpoint returns `400 Bad Request` for missing required fields and
 `404 Not Found` when `portfolio_id` does not identify an existing portfolio.

@@ -86,12 +86,14 @@ header is included in each `curl` command.
 | `PUT` | `/api/portfolios/<portfolio_id>` | Update a portfolio | `200` |
 | `DELETE` | `/api/portfolios/<portfolio_id>` | Delete one portfolio | `200` |
 | `GET` | `/api/portfolios/<portfolio_id>/positions` | List active grouped positions | `200` |
+| `GET` | `/api/portfolios/<portfolio_id>/performance` | List one month of portfolio value points | `200` |
 | `GET` | `/api/holdings?portfolio_id=<id>` | List portfolio holdings | `200` |
 | `POST` | `/api/holdings` | Record a holding transaction | `201` |
 | `GET` | `/api/holdings/<holding_id>` | Get one holding transaction | `200` |
 | `PUT` | `/api/holdings/<holding_id>` | Update a holding transaction | `200` |
 | `DELETE` | `/api/holdings/<holding_id>` | Delete one holding transaction | `200` |
 | `GET` | `/api/stocks/<ticker>/price` | Get latest stock price | `200` |
+| `GET` | `/api/stocks/news` | Get recent general market news | `200` |
 
 ### Check the API
 
@@ -219,6 +221,29 @@ Successful response (`200 OK`):
 If transactions imply a negative position, such as selling more shares than the
 portfolio owns, the endpoint returns `409 Conflict`. If market data cannot be
 loaded, the endpoint returns `502 Bad Gateway`.
+
+### Get portfolio performance
+
+This endpoint reuses the grouped active positions and the existing Yahoo
+Finance integration. It applies current open quantities to one month of daily
+closing prices and returns `{date, value}` points:
+
+```bash
+curl http://localhost:5001/api/portfolios/1/performance
+```
+
+It does not reconstruct historical quantities at each transaction date and
+does not include portfolio cash.
+
+### Get recent market news
+
+```bash
+curl http://localhost:5001/api/stocks/news
+```
+
+The response contains a small Yahoo Finance feed with headline, publisher,
+published time, optional description, and original article URL. Yahoo Finance
+does not require an API key in this project.
 
 ### Get a stock price
 

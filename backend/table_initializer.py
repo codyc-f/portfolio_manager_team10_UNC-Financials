@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS HOLDING(
 
     trade_type VARCHAR(10) NOT NULL,
     quantity DECIMAL(18, 6) NOT NULL,
-    price_per_unit DECIMAL(15, 2) NOT NULL,
+    price_per_unit DECIMAL(15, 3) NOT NULL,
     fee_amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
 
     traded_at DATETIME NOT NULL,
@@ -88,6 +88,10 @@ def main():
     cursor.execute(f"USE {DATABASE_NAME}")
     cursor.execute(CREATE_PORTFOLIO_TABLE_SQL)
     cursor.execute(CREATE_HOLDING_TABLE_SQL)
+    cursor.execute(
+        "ALTER TABLE HOLDING "
+        "MODIFY COLUMN price_per_unit DECIMAL(15, 3) NOT NULL"
+    )
     connection.commit()
 
     print(

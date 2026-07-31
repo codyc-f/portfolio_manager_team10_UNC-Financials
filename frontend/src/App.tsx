@@ -9,10 +9,13 @@ import {
   ChevronDown,
   CircleDollarSign,
   Clock3,
+  ExternalLink,
   LayoutDashboard,
   LoaderCircle,
   Menu,
   MoreHorizontal,
+  Moon,
+  Newspaper,
   Pencil,
   PieChart,
   Plus,
@@ -20,6 +23,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Sun,
   Trash2,
   TrendingUp,
   WalletCards,
@@ -31,12 +35,17 @@ import type {
   AssetType,
   Holding,
   HoldingDraft,
+  NewsArticle,
   Position,
   Portfolio,
   PortfolioDraft,
+  PortfolioPerformance,
   StockOption,
   TradeType,
 } from "./types";
+
+type Page = "holdings" | "performance" | "allocation";
+type Theme = "light" | "dark";
 
 const assetTypes: AssetType[] = ["Stock", "ETF", "Bond", "Crypto", "Cash"];
 const emptyPortfolio: PortfolioDraft = {
@@ -96,6 +105,14 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function getInitialTheme(): Theme {
+  const savedTheme = window.localStorage.getItem("unc-financials-theme");
+  if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
 export default function App() {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(
@@ -116,6 +133,15 @@ export default function App() {
   const [tradeFilter, setTradeFilter] = useState<TradeType | "All">("All");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [activePage, setActivePage] = useState<Page>("holdings");
+  const [performance, setPerformance] =
+    useState<PortfolioPerformance | null>(null);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [performanceError, setPerformanceError] = useState("");
+  const [news, setNews] = useState<NewsArticle[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState("");
 
   const [holdingFormOpen, setHoldingFormOpen] = useState(false);
   const [holdingDraft, setHoldingDraft] = useState<HoldingDraft>(
@@ -191,6 +217,7 @@ export default function App() {
   async function refreshPositions(portfolioId: number) {
     try {
       setPositions(await api.listPositions(portfolioId));
+      setConnectionError("");
       setPositionsLastUpdated(new Date().toLocaleTimeString([], {
         hour: "numeric",
         minute: "2-digit",
@@ -211,10 +238,42 @@ export default function App() {
     }
   }
 
+  async function refreshPerformance(portfolioId: number) {
+    setPerformanceLoading(true);
+    setPerformanceError("");
+    try {
+      setPerformance(await api.getPortfolioPerformance(portfolioId));
+    } catch (error) {
+      setPerformance(null);
+      setPerformanceError(errorMessage(error));
+    } finally {
+      setPerformanceLoading(false);
+    }
+  }
+
+  async function refreshNews() {
+    setNewsLoading(true);
+    setNewsError("");
+    try {
+      setNews(await api.listMarketNews());
+    } catch (error) {
+      setNews([]);
+      setNewsError(errorMessage(error));
+    } finally {
+      setNewsLoading(false);
+    }
+  }
+
   useEffect(() => {
     void refreshPortfolios();
     void refreshStockOptions();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem("unc-financials-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     if (selectedPortfolioId === null) {
@@ -240,6 +299,12 @@ export default function App() {
 
     return () => window.clearInterval(intervalId);
   }, [selectedPortfolioId]);
+
+  useEffect(() => {
+    if (activePage !== "performance" || selectedPortfolioId === null) return;
+    void refreshPerformance(selectedPortfolioId);
+    void refreshNews();
+  }, [activePage, selectedPortfolioId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -318,7 +383,10 @@ export default function App() {
     try {
       if (editingHoldingId === null) {
         await api.createHolding(holdingDraft);
-        setToast(`${holdingDraft.ticker.toUpperCase()} was added`);
+        setToast(
+          `${holdingDraft.tradeType === "BUY" ? "Purchased" : "Sold"} ` +
+          `${holdingDraft.ticker.toUpperCase()} successfully`,
+        );
       } else {
         await api.updateHolding(editingHoldingId, holdingDraft);
         setToast(`${holdingDraft.ticker.toUpperCase()} was updated`);
@@ -468,6 +536,11 @@ export default function App() {
       <Sidebar
         open={mobileNavOpen}
         close={() => setMobileNavOpen(false)}
+        activePage={activePage}
+        onNavigate={(page) => {
+          setActivePage(page);
+          setMobileNavOpen(false);
+        }}
       />
       {mobileNavOpen && (
         <button
@@ -517,6 +590,14 @@ export default function App() {
               <Trash2 size={14} /> <span className="topbar-action-label">Delete</span>
             </button>
           </div>
+          <button
+            className="icon-button theme-toggle"
+            onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}
+            aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+            title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+          >
+            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+          </button>
           <div className="topbar-actions">
             <button className="icon-button" aria-label="Notifications">
               <Bell size={19} />
@@ -527,7 +608,7 @@ export default function App() {
         </header>
 
         <div className="page">
-          {connectionError && (
+          {connectionError && activePage === "holdings" && (
             <div className="inline-alert">
               <AlertCircle size={17} />
               <span>{connectionError}</span>
@@ -539,6 +620,8 @@ export default function App() {
             </div>
           )}
 
+          {activePage === "holdings" && (
+            <>
           <section className="page-heading">
             <div>
               <div className="eyebrow">
@@ -592,10 +675,10 @@ export default function App() {
             <article className="metric-card metric-card--future">
               <div className="metric-card__topline">
                 <span>Portfolio return</span>
-                <span className="coming-soon">COMING SOON</span>
+                <span className="coming-soon">1 MONTH</span>
               </div>
               <div className="future-value">—</div>
-              <small>Market data integration planned</small>
+              <small>Open Performance for Yahoo closing-price history</small>
             </article>
           </section>
 
@@ -716,9 +799,54 @@ export default function App() {
           </section>
 
           <section className="future-panels">
-            <FuturePanel icon={<BarChart3 size={19} />} title="Performance analytics" description="Track returns, benchmark comparisons, and portfolio growth over time." chart />
-            <FuturePanel icon={<PieChart size={19} />} title="Asset allocation" description="Understand diversification by asset class, sector, and currency." />
+            <FuturePanel
+              icon={<BarChart3 size={19} />}
+              title="Performance analytics"
+              description="View the recent market value of your open positions."
+              onClick={() => setActivePage("performance")}
+              chart
+            />
+            <FuturePanel
+              icon={<PieChart size={19} />}
+              title="Asset allocation"
+              description="See how your current market value is divided among stocks."
+              onClick={() => setActivePage("allocation")}
+            />
           </section>
+            </>
+          )}
+
+          {activePage === "allocation" && (
+            <AllocationPage
+              portfolio={selectedPortfolio}
+              positions={positions}
+              loading={holdingsLoading}
+              error={connectionError}
+              retry={() => {
+                if (selectedPortfolioId !== null) {
+                  void refreshHoldings(selectedPortfolioId);
+                }
+              }}
+            />
+          )}
+
+          {activePage === "performance" && (
+            <PerformancePage
+              portfolio={selectedPortfolio}
+              performance={performance}
+              loading={performanceLoading}
+              error={performanceError}
+              retry={() => {
+                if (selectedPortfolioId !== null) {
+                  void refreshPerformance(selectedPortfolioId);
+                }
+              }}
+              news={news}
+              newsLoading={newsLoading}
+              newsError={newsError}
+              retryNews={() => void refreshNews()}
+            />
+          )}
         </div>
       </main>
 
@@ -792,7 +920,17 @@ export default function App() {
   );
 }
 
-function Sidebar({ open, close }: { open: boolean; close: () => void }) {
+function Sidebar({
+  open,
+  close,
+  activePage,
+  onNavigate,
+}: {
+  open: boolean;
+  close: () => void;
+  activePage: Page;
+  onNavigate: (page: Page) => void;
+}) {
   return (
     <aside className={`sidebar ${open ? "sidebar--open" : ""}`}>
       <div className="brand">
@@ -803,9 +941,24 @@ function Sidebar({ open, close }: { open: boolean; close: () => void }) {
       <nav className="main-nav" aria-label="Primary navigation">
         <p className="nav-label">Workspace</p>
         <NavItem icon={<LayoutDashboard size={19} />} label="Overview" future />
-        <NavItem icon={<BriefcaseBusiness size={19} />} label="Holdings" active />
-        <NavItem icon={<BarChart3 size={19} />} label="Performance" future />
-        <NavItem icon={<PieChart size={19} />} label="Allocation" future />
+        <NavItem
+          icon={<BriefcaseBusiness size={19} />}
+          label="Holdings"
+          active={activePage === "holdings"}
+          onClick={() => onNavigate("holdings")}
+        />
+        <NavItem
+          icon={<BarChart3 size={19} />}
+          label="Performance"
+          active={activePage === "performance"}
+          onClick={() => onNavigate("performance")}
+        />
+        <NavItem
+          icon={<PieChart size={19} />}
+          label="Allocation"
+          active={activePage === "allocation"}
+          onClick={() => onNavigate("allocation")}
+        />
         <p className="nav-label nav-label--secondary">Manage</p>
         <NavItem icon={<ArrowDownToLine size={19} />} label="Activity" future />
         <NavItem icon={<Settings size={19} />} label="Settings" future />
@@ -818,8 +971,8 @@ function Sidebar({ open, close }: { open: boolean; close: () => void }) {
   );
 }
 
-function NavItem({ icon, label, active, future }: { icon: React.ReactNode; label: string; active?: boolean; future?: boolean }) {
-  return <button className={`nav-item ${active ? "nav-item--active" : ""} ${future ? "nav-item--future" : ""}`}>{icon}<span>{label}</span>{future && <small>Soon</small>}</button>;
+function NavItem({ icon, label, active, future, onClick }: { icon: React.ReactNode; label: string; active?: boolean; future?: boolean; onClick?: () => void }) {
+  return <button className={`nav-item ${active ? "nav-item--active" : ""} ${future ? "nav-item--future" : ""}`} onClick={onClick} disabled={future}>{icon}<span>{label}</span>{future && <small>Soon</small>}</button>;
 }
 
 function MetricCard({ icon, label, value, note, className }: { icon: React.ReactNode; label: string; value: string; note: string; className?: string }) {
@@ -830,8 +983,328 @@ function FilterSelect({ label, value, options, allLabel, onChange }: { label: st
   return <label className="select-field"><span className="sr-only">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{option === "All" ? allLabel : option === "BUY" ? "Buys" : option === "SELL" ? "Sells" : option}</option>)}</select><ChevronDown size={15} /></label>;
 }
 
-function FuturePanel({ icon, title, description, chart }: { icon: React.ReactNode; title: string; description: string; chart?: boolean }) {
-  return <article><div className="future-panel-icon">{icon}</div><div><span className="coming-soon">COMING SOON</span><h3>{title}</h3><p>{description}</p></div>{chart ? <div className="chart-skeleton" aria-hidden="true"><span /><span /><span /><span /><span /><span /></div> : <div className="donut-skeleton" aria-hidden="true" />}</article>;
+function FuturePanel({ icon, title, description, chart, onClick }: { icon: React.ReactNode; title: string; description: string; chart?: boolean; onClick: () => void }) {
+  return <button type="button" className="future-panel-card" onClick={onClick}><div className="future-panel-icon">{icon}</div><div><span className="coming-soon">VIEW PAGE</span><h3>{title}</h3><p>{description}</p></div>{chart ? <div className="chart-skeleton" aria-hidden="true"><span /><span /><span /><span /><span /><span /></div> : <div className="donut-skeleton" aria-hidden="true" />}</button>;
+}
+
+const allocationColors = [
+  "#4b9cd3",
+  "#f28e2b",
+  "#59a14f",
+  "#af7aa1",
+  "#e15759",
+  "#edc948",
+  "#00a6a6",
+  "#ff7aa2",
+  "#7668c9",
+  "#8c6d45",
+  "#76b7b2",
+  "#d66fb1",
+];
+
+function AllocationPage({
+  portfolio,
+  positions,
+  loading,
+  error,
+  retry,
+}: {
+  portfolio: Portfolio | null;
+  positions: Position[];
+  loading: boolean;
+  error: string;
+  retry: () => void;
+}) {
+  const allocatedPositions = positions.filter(
+    (position) => position.marketValue !== null && position.marketValue > 0,
+  );
+  const investedValue = allocatedPositions.reduce(
+    (sum, position) => sum + (position.marketValue ?? 0),
+    0,
+  );
+  const totalValue = investedValue + (portfolio?.balance ?? 0);
+
+  return (
+    <>
+      <section className="page-heading">
+        <div>
+          <div className="eyebrow"><span className="status-dot" /> LIVE MARKET VALUES</div>
+          <h1>Allocation</h1>
+          <p>See how {portfolio?.name ?? "your portfolio"} is divided among its stocks.</p>
+        </div>
+      </section>
+
+      {!portfolio ? (
+        <PageState icon={<PieChart size={24} />} title="No portfolio selected" description="Select a portfolio to view its allocation." />
+      ) : loading ? (
+        <PageState loading title="Loading allocation" description="Refreshing current holding values…" />
+      ) : error ? (
+        <PageState error title="Allocation unavailable" description={error} actionLabel="Try again" onAction={retry} />
+      ) : positions.length === 0 ? (
+        <PageState icon={<PieChart size={24} />} title="This portfolio has no holdings" description="Add a buy transaction to see its allocation." />
+      ) : allocatedPositions.length === 0 ? (
+        <PageState error title="Market values are unavailable" description="Current prices could not be loaded for this portfolio's holdings." actionLabel="Try again" onAction={retry} />
+      ) : (
+        <>
+          <section className="allocation-summary" aria-label="Portfolio value summary">
+            <MetricCard icon={<CircleDollarSign size={20} />} label="Invested market value" value={formatCurrency(investedValue, portfolio.baseCurrency)} note="Current value of priced positions" />
+            <MetricCard icon={<WalletCards size={20} />} label="Cash balance" value={formatCurrency(portfolio.balance, portfolio.baseCurrency)} note="Available portfolio cash" />
+            <MetricCard className="metric-card--primary" icon={<BriefcaseBusiness size={20} />} label="Total portfolio value" value={formatCurrency(totalValue, portfolio.baseCurrency)} note="Market value plus cash" />
+          </section>
+          <section className="analytics-card allocation-card">
+            <div className="analytics-card__heading">
+              <div><h2>Stock allocation</h2><p>Percentage of current invested market value</p></div>
+              <strong>{formatCurrency(investedValue, portfolio.baseCurrency)}</strong>
+            </div>
+            <div className="allocation-layout">
+              <AllocationDonut
+                positions={allocatedPositions}
+                total={investedValue}
+              />
+              <div className="allocation-legend">
+                {allocatedPositions.map((position, index) => {
+                  const value = position.marketValue ?? 0;
+                  const percentage = (value / investedValue) * 100;
+                  return (
+                    <div className="allocation-row" key={`${position.ticker}-${position.currency}`}>
+                      <span className="allocation-swatch" style={{ background: allocationColors[index % allocationColors.length] }} />
+                      <div><strong>{position.ticker}</strong><span>{position.assetName}</span></div>
+                      <span>{formatCurrency(value, position.currency)}</span>
+                      <strong>{percentage.toFixed(1)}%</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {allocatedPositions.length < positions.length && (
+              <p className="analytics-note">Holdings without a current Yahoo price are excluded from the chart.</p>
+            )}
+          </section>
+        </>
+      )}
+    </>
+  );
+}
+
+function AllocationDonut({
+  positions,
+  total,
+}: {
+  positions: Position[];
+  total: number;
+}) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const radius = 45;
+  const circumference = 2 * Math.PI * radius;
+  let accumulated = 0;
+  const activePosition =
+    activeIndex === null ? null : positions[activeIndex];
+  const activeValue = activePosition?.marketValue ?? 0;
+
+  return (
+    <div className="allocation-donut">
+      <svg
+        viewBox="0 0 120 120"
+        role="img"
+        aria-label={`Doughnut chart showing ${positions.length} stock allocations`}
+      >
+        <circle className="allocation-donut__track" cx="60" cy="60" r={radius} />
+        {positions.map((position, index) => {
+          const value = position.marketValue ?? 0;
+          const percentage = value / total;
+          const offset = accumulated;
+          accumulated += percentage;
+          const label = `${position.ticker}, ${formatCurrency(value, position.currency)}, ${(percentage * 100).toFixed(1)}%`;
+
+          return (
+            <circle
+              className="allocation-donut__segment"
+              key={`${position.ticker}-${position.currency}`}
+              cx="60"
+              cy="60"
+              r={radius}
+              pathLength={circumference}
+              stroke={allocationColors[index % allocationColors.length]}
+              strokeDasharray={`${percentage * circumference} ${circumference}`}
+              strokeDashoffset={-offset * circumference}
+              tabIndex={0}
+              aria-label={label}
+              onMouseEnter={() => setActiveIndex(index)}
+              onMouseLeave={() => setActiveIndex(null)}
+              onFocus={() => setActiveIndex(index)}
+              onBlur={() => setActiveIndex(null)}
+            >
+              <title>{label}</title>
+            </circle>
+          );
+        })}
+      </svg>
+      <div className="allocation-donut__center">
+        <strong>{positions.length}</strong><span>positions</span>
+      </div>
+      {activePosition && (
+        <div className="allocation-tooltip" role="tooltip">
+          <strong>{activePosition.ticker}</strong>
+          <span>{activePosition.assetName}</span>
+          <span>{formatCurrency(activeValue, activePosition.currency)} · {((activeValue / total) * 100).toFixed(1)}%</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PerformancePage({
+  portfolio,
+  performance,
+  loading,
+  error,
+  retry,
+  news,
+  newsLoading,
+  newsError,
+  retryNews,
+}: {
+  portfolio: Portfolio | null;
+  performance: PortfolioPerformance | null;
+  loading: boolean;
+  error: string;
+  retry: () => void;
+  news: NewsArticle[];
+  newsLoading: boolean;
+  newsError: string;
+  retryNews: () => void;
+}) {
+  const points = performance?.points ?? [];
+  const firstValue = points[0]?.value ?? 0;
+  const currentValue = points[points.length - 1]?.value ?? 0;
+  const valueChange = currentValue - firstValue;
+  const percentChange = firstValue ? (valueChange / firstValue) * 100 : 0;
+
+  return (
+    <>
+      <section className="page-heading">
+        <div>
+          <div className="eyebrow"><span className="status-dot" /> YAHOO FINANCE · 1 MONTH</div>
+          <h1>Performance</h1>
+          <p>Recent market value for {portfolio?.name ?? "the selected portfolio"}.</p>
+        </div>
+        {portfolio && <button className="secondary-button refresh-button" onClick={retry} disabled={loading}><RefreshCw size={15} /> Refresh</button>}
+      </section>
+
+      {!portfolio ? (
+        <PageState icon={<BarChart3 size={24} />} title="No portfolio selected" description="Select a portfolio to view its performance." />
+      ) : loading ? (
+        <PageState loading title="Loading performance" description="Getting recent prices from Yahoo Finance…" />
+      ) : error ? (
+        <PageState error title="Performance unavailable" description={error} actionLabel="Try again" onAction={retry} />
+      ) : points.length === 0 ? (
+        <PageState icon={<BarChart3 size={24} />} title="No performance data yet" description="This portfolio needs an active holding before a performance chart can be calculated." />
+      ) : (
+        <>
+          <section className="performance-metrics">
+            <MetricCard className="metric-card--primary" icon={<CircleDollarSign size={20} />} label="Latest position value" value={formatCurrency(currentValue, performance?.currency)} note="Latest available Yahoo close" />
+            <MetricCard icon={<TrendingUp size={20} />} label="One-month change" value={formatCurrency(valueChange, performance?.currency)} note={formatPercent(percentChange)} />
+          </section>
+          <section className="analytics-card">
+            <div className="analytics-card__heading">
+              <div><h2>Portfolio value over time</h2><p>Daily closing value of current open positions</p></div>
+              <span className={gainLossClass(valueChange)}>{formatPercent(percentChange)}</span>
+            </div>
+            <PerformanceLineChart points={points} currency={performance?.currency ?? portfolio.baseCurrency} />
+            <p className="analytics-note">This first version applies today's open quantities to the last month of Yahoo closing prices. It excludes cash and does not reconstruct quantities at each historical trade date.</p>
+          </section>
+        </>
+      )}
+
+      <section className="news-section">
+        <div className="section-heading"><div><Newspaper size={18} /><h2>Recent Stock News You May Be Interested In</h2></div><button onClick={retryNews} disabled={newsLoading}><RefreshCw className={newsLoading ? "spin" : ""} size={14} /> Refresh</button></div>
+        {newsLoading ? (
+          <div className="news-state"><LoaderCircle className="spin" size={20} /> Loading recent news…</div>
+        ) : newsError ? (
+          <div className="news-state news-state--error"><AlertCircle size={18} /><span>{newsError}</span><button onClick={retryNews}>Try again</button></div>
+        ) : news.length === 0 ? (
+          <div className="news-state">No recent articles are available.</div>
+        ) : (
+          <div className="news-grid">
+            {news.map((article) => (
+              <article className="news-card" key={article.url}>
+                <NewsThumbnail article={article} />
+                <div className="news-meta"><span>{article.publisher}</span>{article.publishedAt && <time dateTime={article.publishedAt}>{formatNewsDate(article.publishedAt)}</time>}</div>
+                <h3>{article.headline}</h3>
+                {article.description && <p>{article.description}</p>}
+                <a href={article.url} target="_blank" rel="noreferrer">Read original article <ExternalLink size={13} /></a>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+function NewsThumbnail({ article }: { article: NewsArticle }) {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="news-image">
+      {article.imageUrl && !failed ? (
+        <img
+          src={article.imageUrl}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div className="news-image__fallback" aria-hidden="true">
+          <Newspaper size={24} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PerformanceLineChart({ points, currency }: { points: PortfolioPerformance["points"]; currency: string }) {
+  const width = 900;
+  const height = 280;
+  const padding = 28;
+  const values = points.map((point) => point.value);
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const range = maximum - minimum || 1;
+  const coordinates = points.map((point, index) => ({
+    x: padding + (index / Math.max(points.length - 1, 1)) * (width - padding * 2),
+    y: padding + ((maximum - point.value) / range) * (height - padding * 2),
+  }));
+  const path = coordinates.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
+
+  return (
+    <div className="line-chart">
+      <div className="line-chart__range"><span>{formatCurrency(maximum, currency)}</span><span>{formatCurrency(minimum, currency)}</span></div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Line chart of portfolio market value over the last month">
+        <defs><linearGradient id="performance-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4b9cd3" stopOpacity=".24" /><stop offset="100%" stopColor="#4b9cd3" stopOpacity="0" /></linearGradient></defs>
+        <path className="line-chart__area" d={`${path} L ${coordinates[coordinates.length - 1].x} ${height - padding} L ${coordinates[0].x} ${height - padding} Z`} />
+        <path className="line-chart__line" d={path} />
+        {coordinates.map((point, index) => <circle key={points[index].date} cx={point.x} cy={point.y} r="3"><title>{formatDate(points[index].date)}: {formatCurrency(points[index].value, currency)}</title></circle>)}
+      </svg>
+      <div className="line-chart__dates"><span>{formatDate(points[0].date)}</span><span>{formatDate(points[points.length - 1].date)}</span></div>
+    </div>
+  );
+}
+
+function PageState({ icon, title, description, loading, error, actionLabel, onAction }: { icon?: React.ReactNode; title: string; description: string; loading?: boolean; error?: boolean; actionLabel?: string; onAction?: () => void }) {
+  return <section className={`page-panel-state ${error ? "page-panel-state--error" : ""}`}>{loading ? <LoaderCircle className="spin" size={24} /> : icon ?? <AlertCircle size={24} />}<h2>{title}</h2><p>{description}</p>{actionLabel && onAction && <button className="secondary-button" onClick={onAction}>{actionLabel}</button>}</section>;
+}
+
+function formatNewsDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function PortfolioForm({ draft, setDraft, onSubmit, submitting, error, submitLabel, cancel }: {
@@ -917,7 +1390,7 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
             <Field label="Asset type"><select value={draft.assetType} onChange={(event) => setDraft({ ...draft, assetType: event.target.value as AssetType })}>{assetTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
             <Field label="Trade type"><div className="segmented-control">{(["BUY", "SELL"] as TradeType[]).map((type) => <button key={type} type="button" className={draft.tradeType === type ? "selected" : ""} onClick={() => setDraft({ ...draft, tradeType: type })}>{draft.tradeType === type && <Check size={14} />}{type === "BUY" ? "Buy" : "Sell"}</button>)}</div></Field>
             <Field label="Quantity"><input type="number" value={draft.quantity || ""} onChange={(event) => setDraft({ ...draft, quantity: Number(event.target.value) })} min="0.000001" max={sellQuantityMax} step="any" placeholder="0.00" required /></Field>
-            <Field label="Price per unit"><div className="input-prefix"><span>$</span><input type="number" value={draft.pricePerUnit || ""} onChange={(event) => setDraft({ ...draft, pricePerUnit: Number(event.target.value) })} min="0" step="0.01" placeholder="0.00" required /></div></Field>
+            <Field label="Price per unit"><div className="input-prefix"><span>$</span><input type="number" value={draft.pricePerUnit || ""} onChange={(event) => setDraft({ ...draft, pricePerUnit: Number(event.target.value) })} min="0" step="0.001" placeholder="0.000" required /></div></Field>
             <Field label="Currency"><input value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} maxLength={3} pattern="[A-Za-z]{3}" required /></Field>
             <Field label="Trading fee"><div className="input-prefix"><span>$</span><input type="number" value={draft.feeAmount || ""} onChange={(event) => setDraft({ ...draft, feeAmount: Number(event.target.value) })} min="0" step="0.01" placeholder="0.00" /></div></Field>
             <Field label="Trade date & time" className="form-span"><input type="datetime-local" value={draft.tradedAt} onChange={(event) => setDraft({ ...draft, tradedAt: event.target.value })} required /></Field>

@@ -52,3 +52,25 @@ its holdings first so the database foreign-key relationship stays valid.
 
 See [backend/README.md](backend/README.md) for API payloads and
 [frontend/README.md](frontend/README.md) for the frontend architecture.
+
+## Testing and CI
+
+Backend unit and route tests use pytest:
+
+```powershell
+cd backend
+pytest
+pytest --cov=.
+```
+
+Database-backed integration tests require a MySQL test database:
+
+```powershell
+cd backend
+$env:RUN_DB_INTEGRATION_TESTS="1"
+$env:MYSQL_DATABASE="portfolio_manager_test"
+pytest tests/integration
+```
+
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs backend unit,
+route, and MySQL integration tests on pull requests and pushes to `main`.

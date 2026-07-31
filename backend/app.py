@@ -700,7 +700,8 @@ def create_holding():
               type: number
               format: decimal
               minimum: 0
-              example: 195.25
+              multipleOf: 0.001
+              example: 195.125
             fee_amount:
               type: number
               format: decimal
@@ -916,7 +917,8 @@ def update_holding(holding_id):
               type: number
               format: decimal
               minimum: 0
-              example: 195.25
+              multipleOf: 0.001
+              example: 195.125
             fee_amount:
               type: number
               format: decimal

@@ -47,6 +47,20 @@ def is_number_in_range(value, minimum, maximum=None):
     return maximum is None or number <= Decimal(str(maximum))
 
 
+def has_max_decimal_places(value, maximum_places):
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+
+    if not number.is_finite():
+        return False
+
+    normalized = number.normalize()
+    decimal_places = max(-normalized.as_tuple().exponent, 0)
+    return decimal_places <= maximum_places
+
+
 def is_mysql_datetime(value):
     if not isinstance(value, str):
         return False
@@ -98,6 +112,9 @@ def validate_holding_payload(data):
 
     if not is_number_in_range(data["price_per_unit"], 0):
         return "'price_per_unit' must be a non-negative number"
+
+    if not has_max_decimal_places(data["price_per_unit"], 3):
+        return "'price_per_unit' must have at most 3 decimal places"
 
     if not is_number_in_range(data.get("fee_amount", 0), 0):
         return "'fee_amount' must be a non-negative number"

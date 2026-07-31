@@ -1052,6 +1052,107 @@ html[data-theme="dark"] .coming-soon {
   color: #9cd1f0 !important;
   background: #173747;
 }
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] .confirm-modal,
+html[data-theme="dark"] .onboarding-card {
+  color: #dce9ec;
+  background: #122830;
+}
+html[data-theme="dark"] .modal-header,
+html[data-theme="dark"] .portfolio-form input,
+html[data-theme="dark"] .form-grid input,
+html[data-theme="dark"] .form-grid select {
+  border-color: var(--line);
+}
+html[data-theme="dark"] .modal-header h2,
+html[data-theme="dark"] .confirm-modal h2,
+html[data-theme="dark"] .onboarding-card h1 {
+  color: #f0f7f9;
+}
+html[data-theme="dark"] .modal-header p,
+html[data-theme="dark"] .confirm-modal p,
+html[data-theme="dark"] .onboarding-card > p { color: #a9bbc0; }
+html[data-theme="dark"] .modal-header > button {
+  color: #c5d5d8;
+  background: #1b3740;
+}
+html[data-theme="dark"] .form-grid label > span:first-child,
+html[data-theme="dark"] .portfolio-form > label > span {
+  color: #c5d5d8;
+  font-size: 10px;
+}
+html[data-theme="dark"] .portfolio-form input,
+html[data-theme="dark"] .form-grid input,
+html[data-theme="dark"] .form-grid select {
+  color: #edf6f8;
+  background: #0d2027;
+  font-size: 11px;
+}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] .search-field input::placeholder { color: #82999f; }
+html[data-theme="dark"] .input-prefix > span { color: #a9bbc0; }
+html[data-theme="dark"] .segmented-control { background: #0b1d23; }
+html[data-theme="dark"] .segmented-control button { color: #acbec2; }
+html[data-theme="dark"] .segmented-control button.selected {
+  color: #9dd3f3;
+  background: #1a3944;
+  box-shadow: none;
+}
+html[data-theme="dark"] .trade-summary { background: #102f3b; }
+html[data-theme="dark"] .trade-summary span { color: #b2c5c9; font-size: 10px; }
+html[data-theme="dark"] .trade-summary strong { color: #9dd3f3; }
+html[data-theme="dark"] th {
+  color: #b9c9cd;
+  background: #0d2027;
+  border-color: var(--line);
+  font-size: 9px;
+}
+html[data-theme="dark"] td {
+  color: #cbdadd;
+  border-color: #223a43;
+  font-size: 11px;
+}
+html[data-theme="dark"] tbody tr:hover { background: #152d35; }
+html[data-theme="dark"] .asset-cell strong,
+html[data-theme="dark"] .value-cell { color: #edf6f8; }
+html[data-theme="dark"] .asset-cell span,
+html[data-theme="dark"] .table-footer,
+html[data-theme="dark"] .text-button { color: #9fb2b7; }
+html[data-theme="dark"] .type-pill {
+  color: #c5d5d8;
+  background: #203941;
+}
+html[data-theme="dark"] .row-actions .sell-action {
+  color: #a6e3c4;
+  background: #15382b;
+}
+html[data-theme="dark"] .gain-loss--gain { color: #75d3a3; }
+html[data-theme="dark"] .gain-loss--loss { color: #ff9494; }
+html[data-theme="dark"] .gain-loss--neutral { color: #cbdadd; }
+html[data-theme="dark"] .empty-state h3,
+html[data-theme="dark"] .future-panels h3 { color: #edf6f8; }
+html[data-theme="dark"] .empty-state p,
+html[data-theme="dark"] .future-panels p { color: #a4b7bb; }
+html[data-theme="dark"] .toast {
+  color: #e9f8f0;
+  background: #143329;
+  border-color: #2b6a50;
+  box-shadow: 0 12px 35px rgba(0,0,0,.28);
+  font-size: 12px;
+}
+html[data-theme="dark"] .toast span { background: #278a5c; }
+html[data-theme="dark"] .inline-alert,
+html[data-theme="dark"] .form-error {
+  color: #ffc2c2;
+  background: #3a1e22;
+  border-color: #6d343b;
+  font-size: 11px;
+}
+html[data-theme="dark"] .inline-alert button { color: #ffd0d0; }
+html[data-theme="dark"] .delete-icon {
+  color: #ff9a9a;
+  background: #3a1e22;
+}
 
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(8px) scale(.99); } }

@@ -1261,30 +1261,155 @@ function NewsThumbnail({ article }: { article: NewsArticle }) {
   );
 }
 
-function PerformanceLineChart({ points, currency }: { points: PortfolioPerformance["points"]; currency: string }) {
+function PerformanceLineChart({
+  points,
+  currency,
+}: {
+  points: PortfolioPerformance["points"];
+  currency: string;
+}) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
   const width = 900;
   const height = 280;
   const padding = 28;
+
   const values = points.map((point) => point.value);
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
   const range = maximum - minimum || 1;
+
   const coordinates = points.map((point, index) => ({
-    x: padding + (index / Math.max(points.length - 1, 1)) * (width - padding * 2),
-    y: padding + ((maximum - point.value) / range) * (height - padding * 2),
+    x:
+      padding +
+      (index / Math.max(points.length - 1, 1)) *
+        (width - padding * 2),
+    y:
+      padding +
+      ((maximum - point.value) / range) *
+        (height - padding * 2),
   }));
-  const path = coordinates.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
+
+  const path = coordinates
+    .map(
+      (point, index) =>
+        `${index ? "L" : "M"} ${point.x} ${point.y}`,
+    )
+    .join(" ");
+
+  function handleMouseMove(event: React.MouseEvent<SVGSVGElement>) {
+  const bounds = event.currentTarget.getBoundingClientRect();
+
+  const mouseX =
+    ((event.clientX - bounds.left) / bounds.width) * width;
+
+  let nearestIndex = 0;
+  let smallestDistance = Math.abs(coordinates[0].x - mouseX);
+
+  coordinates.forEach((coordinate, index) => {
+    const distance = Math.abs(coordinate.x - mouseX);
+
+    if (distance < smallestDistance) {
+      smallestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+
+  setActiveIndex(nearestIndex);
+}
+
+  const activeCoordinate =
+    activeIndex === null ? null : coordinates[activeIndex];
+
+  const activePoint =
+    activeIndex === null ? null : points[activeIndex];
 
   return (
     <div className="line-chart">
-      <div className="line-chart__range"><span>{formatCurrency(maximum, currency)}</span><span>{formatCurrency(minimum, currency)}</span></div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Line chart of portfolio market value over the last month">
-        <defs><linearGradient id="performance-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4b9cd3" stopOpacity=".24" /><stop offset="100%" stopColor="#4b9cd3" stopOpacity="0" /></linearGradient></defs>
-        <path className="line-chart__area" d={`${path} L ${coordinates[coordinates.length - 1].x} ${height - padding} L ${coordinates[0].x} ${height - padding} Z`} />
-        <path className="line-chart__line" d={path} />
-        {coordinates.map((point, index) => <circle key={points[index].date} cx={point.x} cy={point.y} r="3"><title>{formatDate(points[index].date)}: {formatCurrency(points[index].value, currency)}</title></circle>)}
-      </svg>
-      <div className="line-chart__dates"><span>{formatDate(points[0].date)}</span><span>{formatDate(points[points.length - 1].date)}</span></div>
+      <div className="line-chart__range">
+        <span>{formatCurrency(maximum, currency)}</span>
+        <span>{formatCurrency(minimum, currency)}</span>
+      </div>
+
+      <div className="line-chart__visual">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label="Line chart of daily portfolio market value over the last month"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setActiveIndex(null)}
+        >
+          <defs>
+            <linearGradient
+              id="performance-fill"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop
+                offset="0%"
+                stopColor="#4b9cd3"
+                stopOpacity=".24"
+              />
+              <stop
+                offset="100%"
+                stopColor="#4b9cd3"
+                stopOpacity="0"
+              />
+            </linearGradient>
+          </defs>
+
+          <path
+            className="line-chart__area"
+            d={`${path} L ${
+              coordinates[coordinates.length - 1].x
+            } ${height - padding} L ${coordinates[0].x} ${
+              height - padding
+            } Z`}
+          />
+
+          <path className="line-chart__line" d={path} />
+
+          {activeCoordinate && (
+            <>
+              <line
+                className="line-chart__guide"
+                x1={activeCoordinate.x}
+                x2={activeCoordinate.x}
+                y1={padding}
+                y2={height - padding}
+              />
+
+              <circle
+                className="line-chart__active-dot"
+                cx={activeCoordinate.x}
+                cy={activeCoordinate.y}
+                r="6"
+              />
+            </>
+          )}
+        </svg>
+
+        {activeCoordinate && activePoint && (
+          <div
+            className="line-chart__tooltip"
+            role="tooltip"
+            style={{
+              left: `${(activeCoordinate.x / width) * 100}%`,
+              top: `${(activeCoordinate.y / height) * 100}%`,
+            }}
+          >
+            <strong>{formatCurrency(activePoint.value, currency)}</strong>
+            <span>{formatDate(activePoint.date)}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="line-chart__dates">
+        <span>{formatDate(points[0].date)}</span>
+        <span>{formatDate(points[points.length - 1].date)}</span>
+      </div>
     </div>
   );
 }

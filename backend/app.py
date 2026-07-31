@@ -609,7 +609,7 @@ def get_portfolio_performance(portfolio_id):
         minimum: 1
     responses:
       200:
-        description: Daily portfolio market-value points.
+        description: Portfolio market-value points at five-day intervals.
       400:
         description: The portfolio ID is invalid.
       404:

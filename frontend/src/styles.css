@@ -1127,3 +1127,53 @@ html[data-theme="dark"] .coming-soon {
     transition-duration: .01ms !important;
   }
 }
+
+.line-chart__visual {
+  position: relative;
+}
+
+.line-chart__visual svg {
+  display: block;
+  width: 100%;
+  cursor: crosshair;
+}
+
+.line-chart__guide {
+  stroke: #94a3b8;
+  stroke-width: 1;
+  stroke-dasharray: 5 5;
+  pointer-events: none;
+}
+
+.line-chart__active-dot {
+  fill: #ffffff;
+  stroke: #4b9cd3;
+  stroke-width: 4;
+  pointer-events: none;
+}
+
+.line-chart__tooltip {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 130px;
+  padding: 10px 12px;
+  color: #ffffff;
+  background: #172033;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 20%);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 14px));
+  white-space: nowrap;
+}
+
+.line-chart__tooltip strong {
+  font-size: 14px;
+}
+
+.line-chart__tooltip span {
+  color: #cbd5e1;
+  font-size: 12px;
+}

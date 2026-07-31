@@ -39,7 +39,7 @@ def get_top_20_stocks():
 
 
 def get_price_history(ticker, period="1mo"):
-    """Return daily closing prices from the existing Yahoo integration."""
+    """Return daily closing prices from Yahoo Finance."""
     ticker = ticker.strip().upper()
     history = yf.Ticker(ticker).history(
         period=period,

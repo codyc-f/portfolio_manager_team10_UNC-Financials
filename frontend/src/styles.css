@@ -1177,3 +1177,50 @@ html[data-theme="dark"] .coming-soon {
   color: #cbd5e1;
   font-size: 12px;
 }
+
+.line-chart__tooltip {
+  min-width: 210px;
+}
+
+.line-chart__tooltip-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgb(255 255 255 / 18%);
+}
+
+.line-chart__tooltip-heading span {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.line-chart__stock-prices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.line-chart__stock-price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.line-chart__stock-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.line-chart__stock-price span {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.line-chart__stock-price strong {
+  color: #ffffff;
+  font-size: 12px;
+}

@@ -64,6 +64,14 @@ interface PerformanceResponse {
   points: Array<{
     date: string;
     value: number | string;
+    stock_values: Array<{
+      ticker: string;
+      asset_name: string;
+      currency: string;
+      quantity: number | string;
+      close: number | string;
+      value: number | string;
+    }>;
   }>;
 }
 
@@ -289,21 +297,30 @@ export const api = {
     return positions.map(mapPosition);
   },
 
-  async getPortfolioPerformance(
-    portfolioId: number,
-  ): Promise<PortfolioPerformance> {
-    const performance = await request<PerformanceResponse>(
-      `/api/portfolios/${portfolioId}/performance`,
-    );
-    return {
-      currency: performance.currency,
-      period: performance.period,
-      points: performance.points.map((point) => ({
-        date: point.date,
-        value: Number(point.value),
-      })),
-    };
-  },
+async getPortfolioPerformance(
+  portfolioId: number,
+): Promise<PortfolioPerformance> {
+  const performance = await request<PerformanceResponse>(
+    `/api/portfolios/${portfolioId}/performance`,
+  );
+
+  return {
+    currency: performance.currency,
+    period: performance.period,
+    points: performance.points.map((point) => ({
+      date: point.date,
+      value: Number(point.value),
+      stockValues: point.stock_values.map((stock) => ({
+      ticker: stock.ticker,
+      assetName: stock.asset_name,
+      currency: stock.currency,
+      quantity: Number(stock.quantity),
+      close: Number(stock.close),
+      value: Number(stock.value),
+    })),
+  })),
+  };
+},
 
   async getHolding(id: number) {
     const holding = await request<HoldingResponse>(`/api/holdings/${id}`);

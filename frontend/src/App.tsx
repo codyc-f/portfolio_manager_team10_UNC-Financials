@@ -1400,8 +1400,32 @@ function PerformanceLineChart({
               top: `${(activeCoordinate.y / height) * 100}%`,
             }}
           >
-            <strong>{formatCurrency(activePoint.value, currency)}</strong>
-            <span>{formatDate(activePoint.date)}</span>
+            <div className="line-chart__tooltip-heading">
+              <strong>{formatDate(activePoint.date)}</strong>
+              <span>
+                Portfolio value:{" "}
+                {formatCurrency(activePoint.value, currency)}
+              </span>
+            </div>
+
+            <div className="line-chart__stock-prices">
+            {activePoint.stockValues.map((stock) => (
+              <div className="line-chart__stock-price" key={stock.ticker}>
+                <div className="line-chart__stock-info">
+                  <strong>{stock.ticker}</strong>
+
+                  <span>
+                    {stock.quantity} shares ×{" "}
+                    {formatCurrency(stock.close, stock.currency)}
+                  </span>
+                </div>
+
+                <strong>
+                  {formatCurrency(stock.value, stock.currency)}
+                </strong>
+              </div>
+            ))}
+          </div>
           </div>
         )}
       </div>

@@ -55,6 +55,7 @@ export interface StockOption {
 export interface PerformancePoint {
   date: string;
   value: number;
+  stockValues: PerformanceStockValue[];
 }
 
 export interface PortfolioPerformance {
@@ -70,4 +71,26 @@ export interface NewsArticle {
   description: string | null;
   imageUrl: string | null;
   url: string;
+}
+
+export interface PerformanceStockPrice {
+  ticker: string;
+  assetName: string;
+  currency: string;
+  close: number;
+}
+
+export interface PerformanceStockValue {
+  ticker: string;
+  assetName: string;
+  currency: string;
+  quantity: number;
+  close: number;
+  value: number;
+}
+
+export interface PerformancePoint {
+  date: string;
+  value: number;
+  stockValues: PerformanceStockValue[];
 }

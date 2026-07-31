@@ -1228,3 +1228,100 @@ html[data-theme="dark"] .delete-icon {
     transition-duration: .01ms !important;
   }
 }
+
+.line-chart__visual {
+  position: relative;
+}
+
+.line-chart__visual svg {
+  display: block;
+  width: 100%;
+  cursor: crosshair;
+}
+
+.line-chart__guide {
+  stroke: #94a3b8;
+  stroke-width: 1;
+  stroke-dasharray: 5 5;
+  pointer-events: none;
+}
+
+.line-chart__active-dot {
+  fill: #ffffff;
+  stroke: #4b9cd3;
+  stroke-width: 4;
+  pointer-events: none;
+}
+
+.line-chart__tooltip {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 130px;
+  padding: 10px 12px;
+  color: #ffffff;
+  background: #172033;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 20%);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 14px));
+  white-space: nowrap;
+}
+
+.line-chart__tooltip strong {
+  font-size: 14px;
+}
+
+.line-chart__tooltip span {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.line-chart__tooltip {
+  min-width: 210px;
+}
+
+.line-chart__tooltip-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgb(255 255 255 / 18%);
+}
+
+.line-chart__tooltip-heading span {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.line-chart__stock-prices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.line-chart__stock-price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.line-chart__stock-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.line-chart__stock-price span {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.line-chart__stock-price strong {
+  color: #ffffff;
+  font-size: 12px;
+}

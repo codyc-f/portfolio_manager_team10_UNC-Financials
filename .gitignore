@@ -4,3 +4,8 @@ dist/
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage/

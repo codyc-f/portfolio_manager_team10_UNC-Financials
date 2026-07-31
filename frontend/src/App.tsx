@@ -1,7 +1,6 @@
 import {
   AlertCircle,
   ArrowDownToLine,
-  ArrowRight,
   BarChart3,
   Bell,
   BriefcaseBusiness,
@@ -85,6 +84,10 @@ function formatCurrency(value: number, currency = "USD") {
   }).format(value);
 }
 
+function roundPrice(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 function formatPercent(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
@@ -102,6 +105,16 @@ function formatDate(value: string) {
     month: "short",
     day: "numeric",
     year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(new Date(value));
 }
 
@@ -149,6 +162,8 @@ export default function App() {
   );
   const [editingHoldingId, setEditingHoldingId] = useState<number | null>(null);
   const [deletingHolding, setDeletingHolding] = useState<Holding | null>(null);
+  const [selectedPositionTransactions, setSelectedPositionTransactions] =
+    useState<Position | null>(null);
 
   const [portfolioFormOpen, setPortfolioFormOpen] = useState(false);
   const [portfolioDraft, setPortfolioDraft] =
@@ -369,31 +384,39 @@ export default function App() {
       currency: position.currency,
       tradeType: "SELL",
       quantity: 0,
-      pricePerUnit: position.currentPrice ?? position.averageCost,
+      pricePerUnit: roundPrice(position.currentPrice ?? position.averageCost),
       feeAmount: 0,
       tradedAt: createEmptyHolding(selectedPortfolioId).tradedAt,
     });
     setHoldingFormOpen(true);
   }
 
+  function openPositionTransactions(position: Position) {
+    setSelectedPositionTransactions(position);
+  }
+
   async function saveHolding(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setMutationError("");
+    const normalizedHoldingDraft = {
+      ...holdingDraft,
+      pricePerUnit: roundPrice(holdingDraft.pricePerUnit),
+    };
     try {
       if (editingHoldingId === null) {
-        await api.createHolding(holdingDraft);
+        await api.createHolding(normalizedHoldingDraft);
         setToast(
-          `${holdingDraft.tradeType === "BUY" ? "Purchased" : "Sold"} ` +
-          `${holdingDraft.ticker.toUpperCase()} successfully`,
+          `${normalizedHoldingDraft.tradeType === "BUY" ? "Purchased" : "Sold"} ` +
+          `${normalizedHoldingDraft.ticker.toUpperCase()} successfully`,
         );
       } else {
-        await api.updateHolding(editingHoldingId, holdingDraft);
-        setToast(`${holdingDraft.ticker.toUpperCase()} was updated`);
+        await api.updateHolding(editingHoldingId, normalizedHoldingDraft);
+        setToast(`${normalizedHoldingDraft.ticker.toUpperCase()} was updated`);
       }
       setHoldingFormOpen(false);
-      await refreshHoldings(holdingDraft.portfolioId);
-      await refreshPortfolios(holdingDraft.portfolioId);
+      await refreshHoldings(normalizedHoldingDraft.portfolioId);
+      await refreshPortfolios(normalizedHoldingDraft.portfolioId);
     } catch (error) {
       setMutationError(errorMessage(error));
     } finally {
@@ -735,7 +758,19 @@ export default function App() {
                     </thead>
                     <tbody>
                       {visiblePositions.map((position) => (
-                        <tr key={`${position.ticker}-${position.currency}`}>
+                        <tr
+                          key={`${position.ticker}-${position.currency}`}
+                          className="clickable-row"
+                          tabIndex={0}
+                          onClick={() => openPositionTransactions(position)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openPositionTransactions(position);
+                            }
+                          }}
+                          aria-label={`View ${position.ticker} transaction history`}
+                        >
                           <td>
                             <div className="asset-cell">
                               <span className={`asset-badge asset-badge--${position.assetType.toLowerCase()}`}>
@@ -766,7 +801,10 @@ export default function App() {
                             <div className="row-actions">
                               <button
                                 className="sell-action"
-                                onClick={() => openSellPosition(position)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openSellPosition(position);
+                                }}
                                 aria-label={`Sell ${position.ticker}`}
                               >
                                 Sell
@@ -792,7 +830,6 @@ export default function App() {
                 )}
                 <div className="table-footer">
                   <span>Showing {visiblePositions.length} of {positions.length} positions from {holdings.length} transactions</span>
-                  <button className="text-button" disabled>View activity history <ArrowRight size={15} /></button>
                 </div>
               </>
             )}
@@ -862,6 +899,14 @@ export default function App() {
           error={mutationError}
           close={() => setHoldingFormOpen(false)}
           onSubmit={saveHolding}
+        />
+      )}
+
+      {selectedPositionTransactions && (
+        <TransactionHistoryModal
+          position={selectedPositionTransactions}
+          holdings={holdings}
+          close={() => setSelectedPositionTransactions(null)}
         />
       )}
 
@@ -1521,7 +1566,7 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
       ticker: selectedStock.ticker,
       assetName: selectedStock.name,
       assetType: "Stock",
-      pricePerUnit: selectedStock.currentPrice,
+      pricePerUnit: roundPrice(selectedStock.currentPrice),
       currency: "USD",
     });
   }
@@ -1538,8 +1583,15 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
             <Field label="Asset name"><input value={draft.assetName} onChange={(event) => setDraft({ ...draft, assetName: event.target.value })} placeholder="e.g. Apple Inc." maxLength={255} required /></Field>
             <Field label="Asset type"><select value={draft.assetType} onChange={(event) => setDraft({ ...draft, assetType: event.target.value as AssetType })}>{assetTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
             <Field label="Trade type"><div className="segmented-control">{(["BUY", "SELL"] as TradeType[]).map((type) => <button key={type} type="button" className={draft.tradeType === type ? "selected" : ""} onClick={() => setDraft({ ...draft, tradeType: type })}>{draft.tradeType === type && <Check size={14} />}{type === "BUY" ? "Buy" : "Sell"}</button>)}</div></Field>
-            <Field label="Quantity"><input type="number" value={draft.quantity || ""} onChange={(event) => setDraft({ ...draft, quantity: Number(event.target.value) })} min="0.000001" max={sellQuantityMax} step="any" placeholder="0.00" required /></Field>
-            <Field label="Price per unit"><div className="input-prefix"><span>$</span><input type="number" value={draft.pricePerUnit || ""} onChange={(event) => setDraft({ ...draft, pricePerUnit: Number(event.target.value) })} min="0" step="0.001" placeholder="0.000" required /></div></Field>
+            <Field label="Quantity">
+              <input type="number" value={draft.quantity || ""} onChange={(event) => setDraft({ ...draft, quantity: Number(event.target.value) })} min="0.000001" max={sellQuantityMax} step="any" placeholder="0.00" required />
+              {draft.tradeType === "SELL" && activePosition && (
+                <span className="field-note">
+                  You own {activePosition.quantityOwned.toLocaleString()} {activePosition.ticker}
+                </span>
+              )}
+            </Field>
+            <Field label="Price per unit"><div className="input-prefix"><span>$</span><input type="number" value={draft.pricePerUnit || ""} onChange={(event) => setDraft({ ...draft, pricePerUnit: Number(event.target.value) })} min="0" step="any" placeholder="0.00" required /></div></Field>
             <Field label="Currency"><input value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} maxLength={3} pattern="[A-Za-z]{3}" required /></Field>
             <Field label="Trading fee"><div className="input-prefix"><span>$</span><input type="number" value={draft.feeAmount || ""} onChange={(event) => setDraft({ ...draft, feeAmount: Number(event.target.value) })} min="0" step="0.01" placeholder="0.00" /></div></Field>
             <Field label="Trade date & time" className="form-span"><input type="datetime-local" value={draft.tradedAt} onChange={(event) => setDraft({ ...draft, tradedAt: event.target.value })} required /></Field>
@@ -1558,6 +1610,76 @@ function Field({ label, className, children }: { label: string; className?: stri
 
 function FormError({ message }: { message: string }) {
   return <div className="form-error"><AlertCircle size={16} /><span>{message}</span></div>;
+}
+
+function TransactionHistoryModal({
+  position,
+  holdings,
+  close,
+}: {
+  position: Position;
+  holdings: Holding[];
+  close: () => void;
+}) {
+  const transactions = holdings
+    .filter(
+      (holding) =>
+        holding.ticker === position.ticker && holding.currency === position.currency,
+    )
+    .sort(
+      (first, second) =>
+        new Date(second.tradedAt).getTime() - new Date(first.tradedAt).getTime(),
+    );
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") close();
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [close]);
+
+  return (
+    <div className="modal-backdrop">
+      <section className="modal transaction-modal" role="dialog" aria-modal="true" aria-labelledby="transaction-history-title">
+        <header className="modal-header">
+          <div>
+            <span className="modal-kicker">TRANSACTION HISTORY</span>
+            <h2 id="transaction-history-title">{position.ticker}</h2>
+            <p>{position.assetName} • {transactions.length} transaction{transactions.length === 1 ? "" : "s"}</p>
+          </div>
+          <button onClick={close} aria-label="Close"><X size={20} /></button>
+        </header>
+        <div className="transaction-list">
+          {transactions.map((transaction) => {
+            const grossValue = transaction.quantity * transaction.pricePerUnit;
+            const totalValue =
+              transaction.tradeType === "SELL"
+                ? Math.max(grossValue - transaction.feeAmount, 0)
+                : grossValue + transaction.feeAmount;
+
+            return (
+              <article className="transaction-row" key={transaction.id}>
+                <div>
+                  <span className={`trade-pill trade-pill--${transaction.tradeType.toLowerCase()}`}>
+                    {transaction.tradeType === "BUY" ? "Buy" : "Sell"}
+                  </span>
+                  <strong>{formatCurrency(totalValue, transaction.currency)}</strong>
+                  <time dateTime={transaction.tradedAt}>{formatDateTime(transaction.tradedAt)}</time>
+                </div>
+                <dl>
+                  <div><dt>Quantity</dt><dd>{transaction.quantity.toLocaleString()}</dd></div>
+                  <div><dt>Price</dt><dd>{formatCurrency(transaction.pricePerUnit, transaction.currency)}</dd></div>
+                  <div><dt>Fee</dt><dd>{formatCurrency(transaction.feeAmount, transaction.currency)}</dd></div>
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function ConfirmModal({ title, description, cancelLabel, confirmLabel, submitting, error, cancel, confirm }: {

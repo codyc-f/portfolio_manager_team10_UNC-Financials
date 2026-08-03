@@ -386,3 +386,20 @@ The endpoint returns `404 Not Found` if the holding does not exist.
 
 The React client performs this workflow automatically and refreshes its state
 from MySQL after every successful mutation.
+
+## Tests
+
+Run backend unit and Flask route tests:
+
+```powershell
+pytest
+pytest --cov=.
+```
+
+Run MySQL integration tests after starting a test MySQL instance:
+
+```powershell
+$env:RUN_DB_INTEGRATION_TESTS="1"
+$env:MYSQL_DATABASE="portfolio_manager_test"
+pytest tests/integration
+```

@@ -23,6 +23,24 @@ def get_current_price(ticker):
 
     return round(float(current_price), 2)
 
+def get_stock_details(ticker):
+    """Return the ticker, company name, and current price."""
+    ticker = ticker.strip().upper()
+    stock = yf.Ticker(ticker)
+
+    current_price = get_current_price(ticker)
+
+    company_name = stock.info.get("shortName") or stock.info.get("longName")
+
+    if not company_name:
+        raise ValueError(f"No stock information found for {ticker}")
+
+    return {
+        "ticker": ticker,
+        "name": company_name,
+        "current_price": current_price,
+    }
+
 
 @lru_cache(maxsize=256)
 def get_company_logo_url(ticker):
@@ -48,7 +66,7 @@ def get_top_20_stocks():
 
 
 def get_price_history(ticker, period="1mo"):
-    """Return daily closing prices from the existing Yahoo integration."""
+    """Return daily closing prices from Yahoo Finance."""
     ticker = ticker.strip().upper()
     history = yf.Ticker(ticker).history(
         period=period,

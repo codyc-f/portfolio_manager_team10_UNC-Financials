@@ -59,12 +59,26 @@ interface StockOptionResponse {
   currentPrice?: number | string;
 }
 
+interface StockDetailsResponse {
+  ticker: string;
+  name: string;
+  current_price: number | string;
+}
+
 interface PerformanceResponse {
   currency: string;
   period: string;
   points: Array<{
     date: string;
     value: number | string;
+    stock_values: Array<{
+      ticker: string;
+      asset_name: string;
+      currency: string;
+      quantity: number | string;
+      close: number | string;
+      value: number | string;
+    }>;
   }>;
 }
 
@@ -227,6 +241,18 @@ export const api = {
     return stocks.map(mapStockOption);
   },
 
+  async getStockDetails(ticker: string): Promise<StockOption> {
+  const stock = await request<StockDetailsResponse>(
+    `/api/stocks/${encodeURIComponent(ticker.trim().toUpperCase())}/price`,
+  );
+
+  return {
+    ticker: stock.ticker,
+    name: stock.name,
+    currentPrice: Number(stock.current_price),
+  };
+},
+
   async listMarketNews(): Promise<NewsArticle[]> {
     const articles = await request<NewsArticleResponse[]>("/api/stocks/news");
     return articles.map((article) => ({
@@ -291,21 +317,30 @@ export const api = {
     return positions.map(mapPosition);
   },
 
-  async getPortfolioPerformance(
-    portfolioId: number,
-  ): Promise<PortfolioPerformance> {
-    const performance = await request<PerformanceResponse>(
-      `/api/portfolios/${portfolioId}/performance`,
-    );
-    return {
-      currency: performance.currency,
-      period: performance.period,
-      points: performance.points.map((point) => ({
-        date: point.date,
-        value: Number(point.value),
-      })),
-    };
-  },
+async getPortfolioPerformance(
+  portfolioId: number,
+): Promise<PortfolioPerformance> {
+  const performance = await request<PerformanceResponse>(
+    `/api/portfolios/${portfolioId}/performance`,
+  );
+
+  return {
+    currency: performance.currency,
+    period: performance.period,
+    points: performance.points.map((point) => ({
+      date: point.date,
+      value: Number(point.value),
+      stockValues: point.stock_values.map((stock) => ({
+      ticker: stock.ticker,
+      assetName: stock.asset_name,
+      currency: stock.currency,
+      quantity: Number(stock.quantity),
+      close: Number(stock.close),
+      value: Number(stock.value),
+    })),
+  })),
+  };
+},
 
   async getHolding(id: number) {
     const holding = await request<HoldingResponse>(`/api/holdings/${id}`);

@@ -65,14 +65,32 @@ def get_portfolio_performance(portfolio_id):
 
     points = []
     for date in sorted(common_dates):
-        value = sum(
-            Decimal(str(position["quantity_owned"]))
-            * prices_by_ticker[position["ticker"]][date]
-            for position in positions
+        stock_values = []
+
+        for position in positions:
+            ticker = position["ticker"]
+            quantity = Decimal(str(position["quantity_owned"]))
+            closing_price = prices_by_ticker[ticker][date]
+            position_value = quantity * closing_price
+
+            stock_values.append({
+                "ticker": ticker,
+                "asset_name": position["asset_name"],
+                "currency": position["currency"],
+                "quantity": decimal_to_json_number(quantity),
+                "close": decimal_to_json_number(closing_price),
+                "value": decimal_to_json_number(position_value),
+            })
+
+        total_value = sum(
+            Decimal(str(stock["value"]))
+            for stock in stock_values
         )
+
         points.append({
             "date": date,
-            "value": decimal_to_json_number(value),
+            "value": decimal_to_json_number(total_value),
+            "stock_values": stock_values,
         })
 
     return {

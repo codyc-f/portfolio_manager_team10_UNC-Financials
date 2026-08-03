@@ -82,6 +82,10 @@ function formatCurrency(value: number, currency = "USD") {
   }).format(value);
 }
 
+function roundPrice(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 function formatPercent(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
@@ -99,6 +103,16 @@ function formatDate(value: string) {
     month: "short",
     day: "numeric",
     year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(new Date(value));
 }
 
@@ -146,6 +160,8 @@ export default function App() {
   );
   const [editingHoldingId, setEditingHoldingId] = useState<number | null>(null);
   const [deletingHolding, setDeletingHolding] = useState<Holding | null>(null);
+  const [selectedPositionTransactions, setSelectedPositionTransactions] =
+    useState<Position | null>(null);
 
   const [portfolioFormOpen, setPortfolioFormOpen] = useState(false);
   const [portfolioDraft, setPortfolioDraft] =
@@ -372,31 +388,39 @@ export default function App() {
       currency: selectedPortfolio?.baseCurrency ?? position.currency,
       tradeType: "SELL",
       quantity: 0,
-      pricePerUnit: position.currentPrice ?? position.averageCost,
+      pricePerUnit: roundPrice(position.currentPrice ?? position.averageCost),
       feeAmount: 0,
       tradedAt: createEmptyHolding(selectedPortfolioId).tradedAt,
     });
     setHoldingFormOpen(true);
   }
 
+  function openPositionTransactions(position: Position) {
+    setSelectedPositionTransactions(position);
+  }
+
   async function saveHolding(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setMutationError("");
+    const normalizedHoldingDraft = {
+      ...holdingDraft,
+      pricePerUnit: roundPrice(holdingDraft.pricePerUnit),
+    };
     try {
       if (editingHoldingId === null) {
-        await api.createHolding(holdingDraft);
+        await api.createHolding(normalizedHoldingDraft);
         setToast(
-          `${holdingDraft.tradeType === "BUY" ? "Purchased" : "Sold"} ` +
-          `${holdingDraft.ticker.toUpperCase()} successfully`,
+          `${normalizedHoldingDraft.tradeType === "BUY" ? "Purchased" : "Sold"} ` +
+          `${normalizedHoldingDraft.ticker.toUpperCase()} successfully`,
         );
       } else {
-        await api.updateHolding(editingHoldingId, holdingDraft);
-        setToast(`${holdingDraft.ticker.toUpperCase()} was updated`);
+        await api.updateHolding(editingHoldingId, normalizedHoldingDraft);
+        setToast(`${normalizedHoldingDraft.ticker.toUpperCase()} was updated`);
       }
       setHoldingFormOpen(false);
-      await refreshHoldings(holdingDraft.portfolioId);
-      await refreshPortfolios(holdingDraft.portfolioId);
+      await refreshHoldings(normalizedHoldingDraft.portfolioId);
+      await refreshPortfolios(normalizedHoldingDraft.portfolioId);
     } catch (error) {
       setMutationError(errorMessage(error));
     } finally {
@@ -723,7 +747,19 @@ export default function App() {
                     </thead>
                     <tbody>
                       {visiblePositions.map((position) => (
-                        <tr key={`${position.ticker}-${position.currency}`}>
+                        <tr
+                          key={`${position.ticker}-${position.currency}`}
+                          className="clickable-row"
+                          tabIndex={0}
+                          onClick={() => openPositionTransactions(position)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openPositionTransactions(position);
+                            }
+                          }}
+                          aria-label={`View ${position.ticker} transaction history`}
+                        >
                           <td>
                             <div className="asset-cell">
                               <CompanyLogo
@@ -756,7 +792,10 @@ export default function App() {
                             <div className="row-actions">
                               <button
                                 className="sell-action"
-                                onClick={() => openSellPosition(position)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openSellPosition(position);
+                                }}
                                 aria-label={`Sell ${position.ticker}`}
                               >
                                 Sell
@@ -782,7 +821,6 @@ export default function App() {
                 )}
                 <div className="table-footer">
                   <span>Showing {visiblePositions.length} of {positions.length} positions from {holdings.length} transactions</span>
-                  <button className="text-button" disabled>View activity history <ArrowRight size={15} /></button>
                 </div>
               </>
             )}
@@ -853,6 +891,14 @@ export default function App() {
           error={mutationError}
           close={() => setHoldingFormOpen(false)}
           onSubmit={saveHolding}
+        />
+      )}
+
+      {selectedPositionTransactions && (
+        <TransactionHistoryModal
+          position={selectedPositionTransactions}
+          holdings={holdings}
+          close={() => setSelectedPositionTransactions(null)}
         />
       )}
 
@@ -1253,30 +1299,179 @@ function NewsThumbnail({ article }: { article: NewsArticle }) {
   );
 }
 
-function PerformanceLineChart({ points, currency }: { points: PortfolioPerformance["points"]; currency: string }) {
+function PerformanceLineChart({
+  points,
+  currency,
+}: {
+  points: PortfolioPerformance["points"];
+  currency: string;
+}) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
   const width = 900;
   const height = 280;
   const padding = 28;
+
   const values = points.map((point) => point.value);
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
   const range = maximum - minimum || 1;
+
   const coordinates = points.map((point, index) => ({
-    x: padding + (index / Math.max(points.length - 1, 1)) * (width - padding * 2),
-    y: padding + ((maximum - point.value) / range) * (height - padding * 2),
+    x:
+      padding +
+      (index / Math.max(points.length - 1, 1)) *
+        (width - padding * 2),
+    y:
+      padding +
+      ((maximum - point.value) / range) *
+        (height - padding * 2),
   }));
-  const path = coordinates.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
+
+  const path = coordinates
+    .map(
+      (point, index) =>
+        `${index ? "L" : "M"} ${point.x} ${point.y}`,
+    )
+    .join(" ");
+
+  function handleMouseMove(event: React.MouseEvent<SVGSVGElement>) {
+  const bounds = event.currentTarget.getBoundingClientRect();
+
+  const mouseX =
+    ((event.clientX - bounds.left) / bounds.width) * width;
+
+  let nearestIndex = 0;
+  let smallestDistance = Math.abs(coordinates[0].x - mouseX);
+
+  coordinates.forEach((coordinate, index) => {
+    const distance = Math.abs(coordinate.x - mouseX);
+
+    if (distance < smallestDistance) {
+      smallestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+
+  setActiveIndex(nearestIndex);
+}
+
+  const activeCoordinate =
+    activeIndex === null ? null : coordinates[activeIndex];
+
+  const activePoint =
+    activeIndex === null ? null : points[activeIndex];
 
   return (
     <div className="line-chart">
-      <div className="line-chart__range"><span>{formatCurrency(maximum, currency)}</span><span>{formatCurrency(minimum, currency)}</span></div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Line chart of portfolio market value over the last month">
-        <defs><linearGradient id="performance-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4b9cd3" stopOpacity=".24" /><stop offset="100%" stopColor="#4b9cd3" stopOpacity="0" /></linearGradient></defs>
-        <path className="line-chart__area" d={`${path} L ${coordinates[coordinates.length - 1].x} ${height - padding} L ${coordinates[0].x} ${height - padding} Z`} />
-        <path className="line-chart__line" d={path} />
-        {coordinates.map((point, index) => <circle key={points[index].date} cx={point.x} cy={point.y} r="3"><title>{formatDate(points[index].date)}: {formatCurrency(points[index].value, currency)}</title></circle>)}
-      </svg>
-      <div className="line-chart__dates"><span>{formatDate(points[0].date)}</span><span>{formatDate(points[points.length - 1].date)}</span></div>
+      <div className="line-chart__range">
+        <span>{formatCurrency(maximum, currency)}</span>
+        <span>{formatCurrency(minimum, currency)}</span>
+      </div>
+
+      <div className="line-chart__visual">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label="Line chart of daily portfolio market value over the last month"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setActiveIndex(null)}
+        >
+          <defs>
+            <linearGradient
+              id="performance-fill"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop
+                offset="0%"
+                stopColor="#4b9cd3"
+                stopOpacity=".24"
+              />
+              <stop
+                offset="100%"
+                stopColor="#4b9cd3"
+                stopOpacity="0"
+              />
+            </linearGradient>
+          </defs>
+
+          <path
+            className="line-chart__area"
+            d={`${path} L ${
+              coordinates[coordinates.length - 1].x
+            } ${height - padding} L ${coordinates[0].x} ${
+              height - padding
+            } Z`}
+          />
+
+          <path className="line-chart__line" d={path} />
+
+          {activeCoordinate && (
+            <>
+              <line
+                className="line-chart__guide"
+                x1={activeCoordinate.x}
+                x2={activeCoordinate.x}
+                y1={padding}
+                y2={height - padding}
+              />
+
+              <circle
+                className="line-chart__active-dot"
+                cx={activeCoordinate.x}
+                cy={activeCoordinate.y}
+                r="6"
+              />
+            </>
+          )}
+        </svg>
+
+        {activeCoordinate && activePoint && (
+          <div
+            className="line-chart__tooltip"
+            role="tooltip"
+            style={{
+              left: `${(activeCoordinate.x / width) * 100}%`,
+              top: `${(activeCoordinate.y / height) * 100}%`,
+            }}
+          >
+            <div className="line-chart__tooltip-heading">
+              <strong>{formatDate(activePoint.date)}</strong>
+              <span>
+                Portfolio value:{" "}
+                {formatCurrency(activePoint.value, currency)}
+              </span>
+            </div>
+
+            <div className="line-chart__stock-prices">
+            {activePoint.stockValues.map((stock) => (
+              <div className="line-chart__stock-price" key={stock.ticker}>
+                <div className="line-chart__stock-info">
+                  <strong>{stock.ticker}</strong>
+
+                  <span>
+                    {stock.quantity} shares ×{" "}
+                    {formatCurrency(stock.close, stock.currency)}
+                  </span>
+                </div>
+
+                <strong>
+                  {formatCurrency(stock.value, stock.currency)}
+                </strong>
+              </div>
+            ))}
+          </div>
+          </div>
+        )}
+      </div>
+
+      <div className="line-chart__dates">
+        <span>{formatDate(points[0].date)}</span>
+        <span>{formatDate(points[points.length - 1].date)}</span>
+      </div>
     </div>
   );
 }
@@ -1329,6 +1524,51 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
   close: () => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  const [tickerQuery, setTickerQuery] = useState(draft.ticker);
+  const [tickerDropdownOpen, setTickerDropdownOpen] = useState(false);
+  const filteredStockOptions = useMemo(() => {
+  const query = tickerQuery.trim().toLowerCase();
+
+  if (!query) {
+    return stockOptions;
+  }
+
+  return stockOptions.filter(
+    (stock) =>
+      stock.ticker.toLowerCase().includes(query) ||
+      stock.name.toLowerCase().includes(query),
+  );
+}, [stockOptions, tickerQuery]);
+
+async function searchTicker() {
+  const ticker = tickerQuery.trim().toUpperCase();
+
+  if (!ticker) return;
+
+  const topStock = stockOptions.find(
+    (stock) => stock.ticker.toUpperCase() === ticker,
+  );
+
+  try {
+    const stock = topStock ?? (await api.getStockDetails(ticker));
+
+    setTickerQuery(stock.ticker);
+
+    setDraft({
+      ...draft,
+      ticker: stock.ticker,
+      assetName: stock.name,
+      assetType: "Stock",
+      pricePerUnit: roundPrice(stock.currentPrice),
+      currency: "USD",
+    });
+
+    setTickerDropdownOpen(false);
+  } catch (error) {
+    console.error("Unable to find ticker:", error);
+    window.alert(`No stock information was found for ${ticker}.`);
+  }
+}
   const activePosition = positions.find(
     (position) =>
       position.ticker === draft.ticker && position.currency === draft.currency,
@@ -1356,11 +1596,13 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
     : formatCurrency(availableCash, draft.currency);
 
   function selectTicker(ticker: string) {
-    const selectedStock = stockOptions.find((stock) => stock.ticker === ticker);
-    if (!selectedStock) {
-      setDraft({ ...draft, ticker });
-      return;
-    }
+    const selectedStock = stockOptions.find(
+      (stock) => stock.ticker === ticker,
+    );
+
+    if (!selectedStock) return;
+
+    setTickerQuery(selectedStock.ticker);
 
     setDraft({
       ...draft,
@@ -1369,6 +1611,8 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
       assetType: "Stock",
       pricePerUnit: selectedStock.currentPrice,
     });
+
+    setTickerDropdownOpen(false);
   }
 
   return (
@@ -1379,7 +1623,97 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
           {error && <FormError message={error} />}
           {stockOptionsError && <FormError message={stockOptionsError} />}
           <div className="form-grid">
-            <Field label="Ticker symbol"><select value={draft.ticker} onChange={(event) => selectTicker(event.target.value)} required autoFocus><option value="" disabled>{stockOptions.length ? "Select a ticker" : "Loading tickers..."}</option>{stockOptions.map((stock) => <option key={stock.ticker} value={stock.ticker}>{stock.ticker} - {stock.name}</option>)}</select></Field>
+            <div className="ticker-field">
+              <label htmlFor="ticker-search">Ticker symbol</label>
+
+              <div
+                className="ticker-combobox"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setTickerDropdownOpen(false);
+                  }
+                }}
+              >
+                <div className="ticker-search">
+                  <Search size={17} />
+
+                  <input
+                    id="ticker-search"
+                    type="text"
+                    value={tickerQuery}
+                    placeholder={
+                      stockOptions.length
+                        ? "Search ticker or company"
+                        : "Loading tickers..."
+                    }
+                    autoComplete="off"
+                    required
+                    role="combobox"
+                    aria-expanded={tickerDropdownOpen}
+                    aria-controls="ticker-options"
+                    onClick={() => setTickerDropdownOpen(true)}
+                    onFocus={() => setTickerDropdownOpen(true)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+
+                      setTickerQuery(value);
+                      setTickerDropdownOpen(true);
+
+                      setDraft({
+                        ...draft,
+                        ticker: "",
+                        assetName: "",
+                        pricePerUnit: 0,
+                      });
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void searchTicker();
+                      }
+
+                      if (event.key === "Escape") {
+                        setTickerDropdownOpen(false);
+                      }
+                    }}
+                  />
+
+                  <ChevronDown
+                    className={tickerDropdownOpen ? "ticker-chevron--open" : ""}
+                    size={17}
+                  />
+                </div>
+
+                {tickerDropdownOpen && (
+                  <div
+                    className="ticker-options"
+                    id="ticker-options"
+                    role="listbox"
+                  >
+                    {filteredStockOptions.length > 0 ? (
+                      filteredStockOptions.map((stock) => (
+                        <button
+                          key={stock.ticker}
+                          type="button"
+                          className="ticker-option"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            selectTicker(stock.ticker);
+                          }}
+                        >
+                          <strong>{stock.ticker}</strong>
+                          <span>{stock.name}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="ticker-options__empty">
+                        No matching stocks found
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
             <Field label="Asset name"><input value={draft.assetName} onChange={(event) => setDraft({ ...draft, assetName: event.target.value })} placeholder="e.g. Apple Inc." maxLength={255} required /></Field>
             <Field label="Asset type"><select value={draft.assetType} onChange={(event) => setDraft({ ...draft, assetType: event.target.value as AssetType })}>{assetTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
             <Field label="Trade type"><div className="segmented-control">{(["BUY", "SELL"] as TradeType[]).map((type) => <button key={type} type="button" className={draft.tradeType === type ? "selected" : ""} onClick={() => setDraft({ ...draft, tradeType: type })}>{draft.tradeType === type && <Check size={14} />}{type === "BUY" ? "Buy" : "Sell"}</button>)}</div></Field>
@@ -1416,6 +1750,76 @@ function Field({ label, className, children }: { label: string; className?: stri
 
 function FormError({ message }: { message: string }) {
   return <div className="form-error"><AlertCircle size={16} /><span>{message}</span></div>;
+}
+
+function TransactionHistoryModal({
+  position,
+  holdings,
+  close,
+}: {
+  position: Position;
+  holdings: Holding[];
+  close: () => void;
+}) {
+  const transactions = holdings
+    .filter(
+      (holding) =>
+        holding.ticker === position.ticker && holding.currency === position.currency,
+    )
+    .sort(
+      (first, second) =>
+        new Date(second.tradedAt).getTime() - new Date(first.tradedAt).getTime(),
+    );
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") close();
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [close]);
+
+  return (
+    <div className="modal-backdrop">
+      <section className="modal transaction-modal" role="dialog" aria-modal="true" aria-labelledby="transaction-history-title">
+        <header className="modal-header">
+          <div>
+            <span className="modal-kicker">TRANSACTION HISTORY</span>
+            <h2 id="transaction-history-title">{position.ticker}</h2>
+            <p>{position.assetName} • {transactions.length} transaction{transactions.length === 1 ? "" : "s"}</p>
+          </div>
+          <button onClick={close} aria-label="Close"><X size={20} /></button>
+        </header>
+        <div className="transaction-list">
+          {transactions.map((transaction) => {
+            const grossValue = transaction.quantity * transaction.pricePerUnit;
+            const totalValue =
+              transaction.tradeType === "SELL"
+                ? Math.max(grossValue - transaction.feeAmount, 0)
+                : grossValue + transaction.feeAmount;
+
+            return (
+              <article className="transaction-row" key={transaction.id}>
+                <div>
+                  <span className={`trade-pill trade-pill--${transaction.tradeType.toLowerCase()}`}>
+                    {transaction.tradeType === "BUY" ? "Buy" : "Sell"}
+                  </span>
+                  <strong>{formatCurrency(totalValue, transaction.currency)}</strong>
+                  <time dateTime={transaction.tradedAt}>{formatDateTime(transaction.tradedAt)}</time>
+                </div>
+                <dl>
+                  <div><dt>Quantity</dt><dd>{transaction.quantity.toLocaleString()}</dd></div>
+                  <div><dt>Price</dt><dd>{formatCurrency(transaction.pricePerUnit, transaction.currency)}</dd></div>
+                  <div><dt>Fee</dt><dd>{formatCurrency(transaction.feeAmount, transaction.currency)}</dd></div>
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function ConfirmModal({ title, description, cancelLabel, confirmLabel, submitting, error, cancel, confirm }: {

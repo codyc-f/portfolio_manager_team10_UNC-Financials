@@ -42,6 +42,7 @@ import type {
 
 type Page = "holdings" | "performance" | "allocation";
 type Theme = "light" | "dark";
+type TransactionHistoryTarget = Position | "all";
 
 const assetTypes: AssetType[] = ["Stock", "ETF", "Bond", "Crypto", "Cash"];
 const emptyPortfolio: PortfolioDraft = {
@@ -159,8 +160,8 @@ export default function App() {
   );
   const [editingHoldingId, setEditingHoldingId] = useState<number | null>(null);
   const [deletingHolding, setDeletingHolding] = useState<Holding | null>(null);
-  const [selectedPositionTransactions, setSelectedPositionTransactions] =
-    useState<Position | null>(null);
+  const [transactionHistoryTarget, setTransactionHistoryTarget] =
+    useState<TransactionHistoryTarget | null>(null);
 
   const [portfolioFormOpen, setPortfolioFormOpen] = useState(false);
   const [portfolioDraft, setPortfolioDraft] =
@@ -395,7 +396,11 @@ export default function App() {
   }
 
   function openPositionTransactions(position: Position) {
-    setSelectedPositionTransactions(position);
+    setTransactionHistoryTarget(position);
+  }
+
+  function openAllTransactions() {
+    setTransactionHistoryTarget("all");
   }
 
   async function saveHolding(event: FormEvent) {
@@ -820,6 +825,13 @@ export default function App() {
                 )}
                 <div className="table-footer">
                   <span>Showing {visiblePositions.length} of {positions.length} positions from {holdings.length} transactions</span>
+                  <button
+                    className="table-footer__action"
+                    onClick={openAllTransactions}
+                    disabled={holdings.length === 0}
+                  >
+                    List all transactions
+                  </button>
                 </div>
               </>
             )}
@@ -893,11 +905,11 @@ export default function App() {
         />
       )}
 
-      {selectedPositionTransactions && (
+      {transactionHistoryTarget && (
         <TransactionHistoryModal
-          position={selectedPositionTransactions}
+          target={transactionHistoryTarget}
           holdings={holdings}
-          close={() => setSelectedPositionTransactions(null)}
+          close={() => setTransactionHistoryTarget(null)}
         />
       )}
 
@@ -1751,23 +1763,28 @@ function FormError({ message }: { message: string }) {
 }
 
 function TransactionHistoryModal({
-  position,
+  target,
   holdings,
   close,
 }: {
-  position: Position;
+  target: TransactionHistoryTarget;
   holdings: Holding[];
   close: () => void;
 }) {
+  const allTransactions = target === "all";
   const transactions = holdings
-    .filter(
-      (holding) =>
-        holding.ticker === position.ticker && holding.currency === position.currency,
-    )
+    .filter((holding) => {
+      if (allTransactions) return true;
+      return holding.ticker === target.ticker && holding.currency === target.currency;
+    })
     .sort(
       (first, second) =>
         new Date(second.tradedAt).getTime() - new Date(first.tradedAt).getTime(),
     );
+  const title = allTransactions ? "All transactions" : target.ticker;
+  const description = allTransactions
+    ? `${transactions.length} holding transaction${transactions.length === 1 ? "" : "s"}`
+    : `${target.assetName} • ${transactions.length} transaction${transactions.length === 1 ? "" : "s"}`;
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -1784,8 +1801,8 @@ function TransactionHistoryModal({
         <header className="modal-header">
           <div>
             <span className="modal-kicker">TRANSACTION HISTORY</span>
-            <h2 id="transaction-history-title">{position.ticker}</h2>
-            <p>{position.assetName} • {transactions.length} transaction{transactions.length === 1 ? "" : "s"}</p>
+            <h2 id="transaction-history-title">{title}</h2>
+            <p>{description}</p>
           </div>
           <button onClick={close} aria-label="Close"><X size={20} /></button>
         </header>
@@ -1804,6 +1821,11 @@ function TransactionHistoryModal({
                     {transaction.tradeType === "BUY" ? "Buy" : "Sell"}
                   </span>
                   <strong>{formatCurrency(totalValue, transaction.currency)}</strong>
+                  {allTransactions && (
+                    <span className="transaction-asset">
+                      {transaction.ticker} • {transaction.assetName}
+                    </span>
+                  )}
                   <time dateTime={transaction.tradedAt}>{formatDateTime(transaction.tradedAt)}</time>
                 </div>
                 <dl>

@@ -1555,12 +1555,8 @@ async function searchTicker() {
 
   if (!ticker) return;
 
-  const topStock = stockOptions.find(
-    (stock) => stock.ticker.toUpperCase() === ticker,
-  );
-
   try {
-    const stock = topStock ?? (await api.getStockDetails(ticker));
+    const stock = await api.getStockDetails(ticker, draft.currency);
 
     setTickerQuery(stock.ticker);
 
@@ -1570,7 +1566,7 @@ async function searchTicker() {
       assetName: stock.name,
       assetType: "Stock",
       pricePerUnit: roundPrice(stock.currentPrice),
-      currency: "USD",
+      currency: draft.currency,
     });
 
     setTickerDropdownOpen(false);
@@ -1605,25 +1601,27 @@ async function searchTicker() {
       })
     : formatCurrency(availableCash, draft.currency);
 
-  function selectTicker(ticker: string) {
-    const selectedStock = stockOptions.find(
-      (stock) => stock.ticker === ticker,
-    );
+  async function selectTicker(ticker: string) {
+  try {
+    const stock = await api.getStockDetails(ticker, draft.currency);
 
-    if (!selectedStock) return;
-
-    setTickerQuery(selectedStock.ticker);
+    setTickerQuery(stock.ticker);
 
     setDraft({
       ...draft,
-      ticker: selectedStock.ticker,
-      assetName: selectedStock.name,
+      ticker: stock.ticker,
+      assetName: stock.name,
       assetType: "Stock",
-      pricePerUnit: selectedStock.currentPrice,
+      pricePerUnit: roundPrice(stock.currentPrice),
+      currency: draft.currency,
     });
 
     setTickerDropdownOpen(false);
+  } catch (error) {
+    console.error("Unable to find ticker:", error);
+    window.alert(`No stock information was found for ${ticker}.`);
   }
+}
 
   return (
     <div className="modal-backdrop">
@@ -1708,7 +1706,7 @@ async function searchTicker() {
                           className="ticker-option"
                           onMouseDown={(event) => {
                             event.preventDefault();
-                            selectTicker(stock.ticker);
+                            void selectTicker(stock.ticker);
                           }}
                         >
                           <strong>{stock.ticker}</strong>

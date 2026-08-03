@@ -92,7 +92,7 @@ def list_most_active_stocks():
 
 @app.route("/api/stocks/<ticker>/price", methods=["GET"])
 def get_stock_price(ticker):
-    """Get the latest available market price for a stock ticker.
+     """Get the latest market price converted into the requested currency.
     ---
     tags:
       - Market Data
@@ -111,14 +111,15 @@ def get_stock_price(ticker):
         description: The ticker is invalid.
       502:
         description: Market data provider could not be reached.
-    """
-    try:
-        price = stock_service.get_stock_price(ticker)
-    except ServiceError as error:
+     """
+     currency = request.args.get("currency", "USD")
+
+     try:
+        price = stock_service.get_stock_price(ticker, currency)
+     except ServiceError as error:
         return jsonify({"error": error.message}), error.status_code
 
-    return jsonify(price), 200
-
+     return jsonify(price), 200
 
 @app.route("/api/stocks/news", methods=["GET"])
 def list_stock_news():

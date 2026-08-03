@@ -58,6 +58,12 @@ interface StockOptionResponse {
   currentPrice?: number | string;
 }
 
+interface StockDetailsResponse {
+  ticker: string;
+  name: string;
+  current_price: number | string;
+}
+
 interface PerformanceResponse {
   currency: string;
   period: string;
@@ -232,6 +238,18 @@ export const api = {
     );
     return stocks.map(mapStockOption);
   },
+
+  async getStockDetails(ticker: string): Promise<StockOption> {
+  const stock = await request<StockDetailsResponse>(
+    `/api/stocks/${encodeURIComponent(ticker.trim().toUpperCase())}/price`,
+  );
+
+  return {
+    ticker: stock.ticker,
+    name: stock.name,
+    currentPrice: Number(stock.current_price),
+  };
+},
 
   async listMarketNews(): Promise<NewsArticle[]> {
     const articles = await request<NewsArticleResponse[]>("/api/stocks/news");

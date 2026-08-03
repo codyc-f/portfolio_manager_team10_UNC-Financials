@@ -1548,6 +1548,36 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
       stock.name.toLowerCase().includes(query),
   );
 }, [stockOptions, tickerQuery]);
+
+async function searchTicker() {
+  const ticker = tickerQuery.trim().toUpperCase();
+
+  if (!ticker) return;
+
+  const topStock = stockOptions.find(
+    (stock) => stock.ticker.toUpperCase() === ticker,
+  );
+
+  try {
+    const stock = topStock ?? (await api.getStockDetails(ticker));
+
+    setTickerQuery(stock.ticker);
+
+    setDraft({
+      ...draft,
+      ticker: stock.ticker,
+      assetName: stock.name,
+      assetType: "Stock",
+      pricePerUnit: roundPrice(stock.currentPrice),
+      currency: "USD",
+    });
+
+    setTickerDropdownOpen(false);
+  } catch (error) {
+    console.error("Unable to find ticker:", error);
+    window.alert(`No stock information was found for ${ticker}.`);
+  }
+}
   const activePosition = positions.find(
     (position) =>
       position.ticker === draft.ticker && position.currency === draft.currency,
@@ -1642,13 +1672,9 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
                       });
                     }}
                     onKeyDown={(event) => {
-                      if (
-                        event.key === "Enter" &&
-                        tickerDropdownOpen &&
-                        filteredStockOptions.length > 0
-                      ) {
+                      if (event.key === "Enter") {
                         event.preventDefault();
-                        selectTicker(filteredStockOptions[0].ticker);
+                        void searchTicker();
                       }
 
                       if (event.key === "Escape") {

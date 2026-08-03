@@ -47,8 +47,9 @@ endpoint. Performance applies current open quantities to one month of Yahoo
 Finance daily closing prices. This is a useful estimate, not a transaction-date
 reconstruction; it excludes cash and historical quantity changes.
 
-Deleting a portfolio with holding transactions returns `409 Conflict`. Remove
-its holdings first so the database foreign-key relationship stays valid.
+Deleting a portfolio with active positions returns `409 Conflict`. Once every
+position has been fully sold, deleting the portfolio also removes its holding
+transaction history so the database foreign-key relationship stays valid.
 
 See [backend/README.md](backend/README.md) for API payloads and
 [frontend/README.md](frontend/README.md) for the frontend architecture.

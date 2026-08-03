@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from functools import lru_cache
 
 import yfinance as yf
 
@@ -21,6 +22,14 @@ def get_current_price(ticker):
         current_price = price_history["Close"].iloc[-1]
 
     return round(float(current_price), 2)
+
+
+@lru_cache(maxsize=256)
+def get_company_logo_url(ticker):
+    """Return Yahoo's company logo URL when one is available."""
+    ticker = ticker.strip().upper()
+    info = yf.Ticker(ticker).get_info()
+    return info.get("logoUrl") or info.get("logo_url") or None
 
 
 def get_top_20_stocks():

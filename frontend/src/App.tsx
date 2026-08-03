@@ -1,16 +1,13 @@
 import {
   AlertCircle,
-  ArrowDownToLine,
   ArrowRight,
   BarChart3,
-  Bell,
   BriefcaseBusiness,
   Check,
   ChevronDown,
   CircleDollarSign,
   Clock3,
   ExternalLink,
-  LayoutDashboard,
   LoaderCircle,
   Menu,
   MoreHorizontal,
@@ -54,7 +51,7 @@ const emptyPortfolio: PortfolioDraft = {
   balance: 0,
 };
 
-function createEmptyHolding(portfolioId: number): HoldingDraft {
+function createEmptyHolding(portfolioId: number, currency = "USD"): HoldingDraft {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   return {
@@ -62,7 +59,7 @@ function createEmptyHolding(portfolioId: number): HoldingDraft {
     ticker: "",
     assetName: "",
     assetType: "Stock",
-    currency: "USD",
+    currency,
     tradeType: "BUY",
     quantity: 0,
     pricePerUnit: 0,
@@ -344,7 +341,10 @@ export default function App() {
     setEditingHoldingId(null);
     setMutationError("");
     setHoldingDraft(
-      createEmptyHolding(selectedPortfolioId),
+      createEmptyHolding(
+        selectedPortfolioId,
+        selectedPortfolio?.baseCurrency ?? "USD",
+      ),
     );
     setHoldingFormOpen(true);
   }
@@ -352,7 +352,10 @@ export default function App() {
   function openEditHolding(holding: Holding) {
     const { id, ...draft } = holding;
     setEditingHoldingId(id);
-    setHoldingDraft(draft);
+    setHoldingDraft({
+      ...draft,
+      currency: selectedPortfolio?.baseCurrency ?? draft.currency,
+    });
     setMutationError("");
     setHoldingFormOpen(true);
   }
@@ -366,7 +369,7 @@ export default function App() {
       ticker: position.ticker,
       assetName: position.assetName,
       assetType: position.assetType,
-      currency: position.currency,
+      currency: selectedPortfolio?.baseCurrency ?? position.currency,
       tradeType: "SELL",
       quantity: 0,
       pricePerUnit: position.currentPrice ?? position.averageCost,
@@ -598,13 +601,6 @@ export default function App() {
           >
             {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
           </button>
-          <div className="topbar-actions">
-            <button className="icon-button" aria-label="Notifications">
-              <Bell size={19} />
-              <span className="notification-dot" />
-            </button>
-            <button className="help-button">Help &amp; support</button>
-          </div>
         </header>
 
         <div className="page">
@@ -672,14 +668,6 @@ export default function App() {
               value={String(totals.transactions)}
               note="Buy and sell records"
             />
-            <article className="metric-card metric-card--future">
-              <div className="metric-card__topline">
-                <span>Portfolio return</span>
-                <span className="coming-soon">1 MONTH</span>
-              </div>
-              <div className="future-value">—</div>
-              <small>Open Performance for Yahoo closing-price history</small>
-            </article>
           </section>
 
           <section className="holdings-card" aria-busy={holdingsLoading}>
@@ -738,9 +726,11 @@ export default function App() {
                         <tr key={`${position.ticker}-${position.currency}`}>
                           <td>
                             <div className="asset-cell">
-                              <span className={`asset-badge asset-badge--${position.assetType.toLowerCase()}`}>
-                                {position.ticker.slice(0, 2)}
-                              </span>
+                              <CompanyLogo
+                                ticker={position.ticker}
+                                logoUrl={position.logoUrl}
+                                assetType={position.assetType}
+                              />
                               <div><strong>{position.ticker}</strong><span>{position.assetName}</span></div>
                             </div>
                           </td>
@@ -857,6 +847,7 @@ export default function App() {
           positions={positions}
           stockOptions={stockOptions}
           stockOptionsError={stockOptionsError}
+          availableCash={selectedPortfolio?.balance ?? 0}
           editing={editingHoldingId !== null}
           submitting={submitting}
           error={mutationError}
@@ -940,7 +931,6 @@ function Sidebar({
       </div>
       <nav className="main-nav" aria-label="Primary navigation">
         <p className="nav-label">Workspace</p>
-        <NavItem icon={<LayoutDashboard size={19} />} label="Overview" future />
         <NavItem
           icon={<BriefcaseBusiness size={19} />}
           label="Holdings"
@@ -960,7 +950,6 @@ function Sidebar({
           onClick={() => onNavigate("allocation")}
         />
         <p className="nav-label nav-label--secondary">Manage</p>
-        <NavItem icon={<ArrowDownToLine size={19} />} label="Activity" future />
         <NavItem icon={<Settings size={19} />} label="Settings" future />
       </nav>
       <div className="sidebar-footer">
@@ -1327,12 +1316,13 @@ function PortfolioForm({ draft, setDraft, onSubmit, submitting, error, submitLab
   );
 }
 
-function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsError, editing, submitting, error, close, onSubmit }: {
+function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsError, availableCash, editing, submitting, error, close, onSubmit }: {
   draft: HoldingDraft;
   setDraft: (draft: HoldingDraft) => void;
   positions: Position[];
   stockOptions: StockOption[];
   stockOptionsError: string;
+  availableCash: number;
   editing: boolean;
   submitting: boolean;
   error: string;
@@ -1359,6 +1349,11 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
     draft.tradeType === "SELL"
       ? Math.max(draft.quantity * draft.pricePerUnit - draft.feeAmount, 0)
       : draft.quantity * draft.pricePerUnit + draft.feeAmount;
+  const headerValue = draft.tradeType === "SELL"
+    ? (activePosition?.quantityOwned ?? 0).toLocaleString(undefined, {
+        maximumFractionDigits: 6,
+      })
+    : formatCurrency(availableCash, draft.currency);
 
   function selectTicker(ticker: string) {
     const selectedStock = stockOptions.find((stock) => stock.ticker === ticker);
@@ -1373,14 +1368,13 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
       assetName: selectedStock.name,
       assetType: "Stock",
       pricePerUnit: selectedStock.currentPrice,
-      currency: "USD",
     });
   }
 
   return (
     <div className="modal-backdrop">
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="holding-title">
-        <header className="modal-header"><div><span className="modal-kicker">{editing ? "UPDATE TRANSACTION" : draft.tradeType === "SELL" ? "SELL POSITION" : "NEW TRANSACTION"}</span><h2 id="holding-title">{modalTitle}</h2><p>Record the trade details for your portfolio.</p></div><button onClick={close} aria-label="Close"><X size={20} /></button></header>
+        <header className="modal-header"><div className="modal-header__copy"><span className="modal-kicker">{editing ? "UPDATE TRANSACTION" : draft.tradeType === "SELL" ? "SELL POSITION" : "NEW TRANSACTION"}</span><h2 id="holding-title">{modalTitle}</h2><p>Record the trade details for your portfolio.</p></div><div className="modal-header__context"><span>{draft.tradeType === "SELL" ? "Shares owned" : "Available cash"}</span><strong>{headerValue}</strong></div><button onClick={close} aria-label="Close"><X size={20} /></button></header>
         <form onSubmit={onSubmit}>
           {error && <FormError message={error} />}
           {stockOptionsError && <FormError message={stockOptionsError} />}
@@ -1390,15 +1384,28 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
             <Field label="Asset type"><select value={draft.assetType} onChange={(event) => setDraft({ ...draft, assetType: event.target.value as AssetType })}>{assetTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
             <Field label="Trade type"><div className="segmented-control">{(["BUY", "SELL"] as TradeType[]).map((type) => <button key={type} type="button" className={draft.tradeType === type ? "selected" : ""} onClick={() => setDraft({ ...draft, tradeType: type })}>{draft.tradeType === type && <Check size={14} />}{type === "BUY" ? "Buy" : "Sell"}</button>)}</div></Field>
             <Field label="Quantity"><input type="number" value={draft.quantity || ""} onChange={(event) => setDraft({ ...draft, quantity: Number(event.target.value) })} min="0.000001" max={sellQuantityMax} step="any" placeholder="0.00" required /></Field>
-            <Field label="Price per unit"><div className="input-prefix"><span>$</span><input type="number" value={draft.pricePerUnit || ""} onChange={(event) => setDraft({ ...draft, pricePerUnit: Number(event.target.value) })} min="0" step="0.001" placeholder="0.000" required /></div></Field>
-            <Field label="Currency"><input value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} maxLength={3} pattern="[A-Za-z]{3}" required /></Field>
-            <Field label="Trading fee"><div className="input-prefix"><span>$</span><input type="number" value={draft.feeAmount || ""} onChange={(event) => setDraft({ ...draft, feeAmount: Number(event.target.value) })} min="0" step="0.01" placeholder="0.00" /></div></Field>
+            <Field label="Price per unit"><div className="input-prefix input-prefix--currency"><span>{draft.currency}</span><input type="number" value={draft.pricePerUnit || ""} onChange={(event) => setDraft({ ...draft, pricePerUnit: Number(event.target.value) })} min="0" step="0.001" placeholder="0.000" required /></div></Field>
+            <div className="currency-display"><span>Currency</span><div><strong>{draft.currency}</strong><small>Portfolio base currency</small></div></div>
+            <Field label="Trading fee"><div className="input-prefix input-prefix--currency"><span>{draft.currency}</span><input type="number" value={draft.feeAmount || ""} onChange={(event) => setDraft({ ...draft, feeAmount: Number(event.target.value) })} min="0" step="0.01" placeholder="0.00" /></div></Field>
             <Field label="Trade date & time" className="form-span"><input type="datetime-local" value={draft.tradedAt} onChange={(event) => setDraft({ ...draft, tradedAt: event.target.value })} required /></Field>
           </div>
-          <div className="trade-summary"><span>{draft.tradeType === "SELL" ? "Estimated sale proceeds" : "Estimated transaction value"}</span><strong>{formatCurrency(estimatedValue, draft.currency || "USD")}</strong></div>
+          <div className="trade-summary"><span>{draft.tradeType === "SELL" ? "Estimated sale proceeds" : "Estimated transaction value"}</span><strong>{formatCurrency(estimatedValue, draft.currency)}</strong></div>
           <footer className="modal-footer"><button className="secondary-button" type="button" onClick={close} disabled={submitting}>Cancel</button><button className="primary-button" disabled={submitting}>{submitting && <LoaderCircle className="spin" size={15} />}{submitLabel}</button></footer>
         </form>
       </section>
+    </div>
+  );
+}
+
+function CompanyLogo({ ticker, logoUrl, assetType }: { ticker: string; logoUrl: string | null; assetType: AssetType }) {
+  const [failed, setFailed] = useState(false);
+  const initials = ticker.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
+
+  return (
+    <div className={`asset-logo asset-badge--${assetType.toLowerCase()}`} aria-hidden="true">
+      {logoUrl && !failed ? (
+        <img src={logoUrl} alt="" loading="lazy" onError={() => setFailed(true)} />
+      ) : initials}
     </div>
   );
 }

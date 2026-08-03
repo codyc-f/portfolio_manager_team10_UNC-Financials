@@ -3,7 +3,7 @@
 UNC Financials is a React, Flask, and MySQL portfolio manager. The current
 release supports complete CRUD workflows for portfolios and holding
 transactions, current-value allocation, one-month portfolio performance, and
-recent market news. Overview and activity screens remain visual placeholders.
+recent market news.
 
 ## Start the application
 

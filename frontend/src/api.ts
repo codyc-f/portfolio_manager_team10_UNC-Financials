@@ -42,6 +42,7 @@ interface PositionResponse {
   ticker: string;
   asset_name: string;
   asset_type: string;
+  logo_url?: string | null;
   currency: string;
   quantity_owned: number | string;
   average_cost: number | string;
@@ -196,6 +197,7 @@ function mapPosition(position: PositionResponse): Position {
     ticker: position.ticker,
     assetName: position.asset_name,
     assetType: normalizeAssetType(position.asset_type),
+    logoUrl: position.logo_url ?? null,
     currency: position.currency,
     quantityOwned: Number(position.quantity_owned),
     averageCost: Number(position.average_cost),

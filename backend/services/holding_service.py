@@ -3,7 +3,7 @@ from decimal import Decimal
 import mysql.connector
 
 from db import get_connection
-from market_data import get_current_price
+from market_data import get_company_logo_url, get_current_price
 from repositories import holding_repository, portfolio_repository
 from serializers import serialize_db_row
 from services.errors import (
@@ -66,7 +66,14 @@ def list_positions(portfolio_id):
     except Exception as error:
         raise ExternalServiceError(str(error)) from error
 
-    return build_positions_from_transactions(transactions, current_prices)
+    positions = build_positions_from_transactions(transactions, current_prices)
+    for position in positions:
+        try:
+            position["logo_url"] = get_company_logo_url(position["ticker"])
+        except Exception:
+            position["logo_url"] = None
+
+    return positions
 
 
 def create_holding(data):

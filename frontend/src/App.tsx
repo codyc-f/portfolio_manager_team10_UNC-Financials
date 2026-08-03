@@ -10,7 +10,6 @@ import {
   ExternalLink,
   LoaderCircle,
   Menu,
-  MoreHorizontal,
   Moon,
   Newspaper,
   Pencil,
@@ -1000,7 +999,6 @@ function Sidebar({
       </nav>
       <div className="sidebar-footer">
         <div className="secure-note"><ShieldCheck size={18} /><div><strong>Database connected</strong><span>Changes save to MySQL</span></div></div>
-        <div className="profile"><span className="avatar">NT</span><div><strong>Nifty Team</strong><span>Portfolio admin</span></div><MoreHorizontal size={18} /></div>
       </div>
     </aside>
   );

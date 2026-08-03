@@ -1533,6 +1533,21 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
   close: () => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  const [tickerQuery, setTickerQuery] = useState(draft.ticker);
+  const [tickerDropdownOpen, setTickerDropdownOpen] = useState(false);
+  const filteredStockOptions = useMemo(() => {
+  const query = tickerQuery.trim().toLowerCase();
+
+  if (!query) {
+    return stockOptions;
+  }
+
+  return stockOptions.filter(
+    (stock) =>
+      stock.ticker.toLowerCase().includes(query) ||
+      stock.name.toLowerCase().includes(query),
+  );
+}, [stockOptions, tickerQuery]);
   const activePosition = positions.find(
     (position) =>
       position.ticker === draft.ticker && position.currency === draft.currency,
@@ -1555,11 +1570,13 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
       : draft.quantity * draft.pricePerUnit + draft.feeAmount;
 
   function selectTicker(ticker: string) {
-    const selectedStock = stockOptions.find((stock) => stock.ticker === ticker);
-    if (!selectedStock) {
-      setDraft({ ...draft, ticker });
-      return;
-    }
+    const selectedStock = stockOptions.find(
+      (stock) => stock.ticker === ticker,
+    );
+
+    if (!selectedStock) return;
+
+    setTickerQuery(selectedStock.ticker);
 
     setDraft({
       ...draft,
@@ -1569,6 +1586,8 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
       pricePerUnit: roundPrice(selectedStock.currentPrice),
       currency: "USD",
     });
+
+    setTickerDropdownOpen(false);
   }
 
   return (
@@ -1579,7 +1598,101 @@ function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsEr
           {error && <FormError message={error} />}
           {stockOptionsError && <FormError message={stockOptionsError} />}
           <div className="form-grid">
-            <Field label="Ticker symbol"><select value={draft.ticker} onChange={(event) => selectTicker(event.target.value)} required autoFocus><option value="" disabled>{stockOptions.length ? "Select a ticker" : "Loading tickers..."}</option>{stockOptions.map((stock) => <option key={stock.ticker} value={stock.ticker}>{stock.ticker} - {stock.name}</option>)}</select></Field>
+            <div className="ticker-field">
+              <label htmlFor="ticker-search">Ticker symbol</label>
+
+              <div
+                className="ticker-combobox"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setTickerDropdownOpen(false);
+                  }
+                }}
+              >
+                <div className="ticker-search">
+                  <Search size={17} />
+
+                  <input
+                    id="ticker-search"
+                    type="text"
+                    value={tickerQuery}
+                    placeholder={
+                      stockOptions.length
+                        ? "Search ticker or company"
+                        : "Loading tickers..."
+                    }
+                    autoComplete="off"
+                    required
+                    role="combobox"
+                    aria-expanded={tickerDropdownOpen}
+                    aria-controls="ticker-options"
+                    onClick={() => setTickerDropdownOpen(true)}
+                    onFocus={() => setTickerDropdownOpen(true)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+
+                      setTickerQuery(value);
+                      setTickerDropdownOpen(true);
+
+                      setDraft({
+                        ...draft,
+                        ticker: "",
+                        assetName: "",
+                        pricePerUnit: 0,
+                      });
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter" &&
+                        tickerDropdownOpen &&
+                        filteredStockOptions.length > 0
+                      ) {
+                        event.preventDefault();
+                        selectTicker(filteredStockOptions[0].ticker);
+                      }
+
+                      if (event.key === "Escape") {
+                        setTickerDropdownOpen(false);
+                      }
+                    }}
+                  />
+
+                  <ChevronDown
+                    className={tickerDropdownOpen ? "ticker-chevron--open" : ""}
+                    size={17}
+                  />
+                </div>
+
+                {tickerDropdownOpen && (
+                  <div
+                    className="ticker-options"
+                    id="ticker-options"
+                    role="listbox"
+                  >
+                    {filteredStockOptions.length > 0 ? (
+                      filteredStockOptions.map((stock) => (
+                        <button
+                          key={stock.ticker}
+                          type="button"
+                          className="ticker-option"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            selectTicker(stock.ticker);
+                          }}
+                        >
+                          <strong>{stock.ticker}</strong>
+                          <span>{stock.name}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="ticker-options__empty">
+                        No matching stocks found
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
             <Field label="Asset name"><input value={draft.assetName} onChange={(event) => setDraft({ ...draft, assetName: event.target.value })} placeholder="e.g. Apple Inc." maxLength={255} required /></Field>
             <Field label="Asset type"><select value={draft.assetType} onChange={(event) => setDraft({ ...draft, assetType: event.target.value as AssetType })}>{assetTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
             <Field label="Trade type"><div className="segmented-control">{(["BUY", "SELL"] as TradeType[]).map((type) => <button key={type} type="button" className={draft.tradeType === type ? "selected" : ""} onClick={() => setDraft({ ...draft, tradeType: type })}>{draft.tradeType === type && <Check size={14} />}{type === "BUY" ? "Buy" : "Sell"}</button>)}</div></Field>

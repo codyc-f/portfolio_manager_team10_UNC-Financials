@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from functools import lru_cache
+from decimal import Decimal
 
 import yfinance as yf
 
@@ -22,6 +23,62 @@ def get_current_price(ticker):
         current_price = price_history["Close"].iloc[-1]
 
     return round(float(current_price), 2)
+
+def get_stock_currency(ticker):
+    """Return the currency Yahoo Finance uses for a stock."""
+    ticker = ticker.strip().upper()
+    stock = yf.Ticker(ticker)
+
+    currency = stock.fast_info.get("currency")
+
+    if not currency:
+        currency = stock.get_info().get("currency")
+
+    if not currency:
+        raise ValueError(f"No market currency found for {ticker}")
+
+    return currency.strip().upper()
+
+
+def get_exchange_rate(from_currency, to_currency):
+    """Return the latest exchange rate between two currencies."""
+    from_currency = from_currency.strip().upper()
+    to_currency = to_currency.strip().upper()
+
+    if from_currency == to_currency:
+        return Decimal("1")
+
+    currency_pair = f"{from_currency}{to_currency}=X"
+    history = yf.Ticker(currency_pair).history(period="5d")
+
+    if history.empty:
+        raise ValueError(
+            f"No exchange rate found from {from_currency} to {to_currency}"
+        )
+
+    available_rates = history["Close"].dropna()
+
+    if available_rates.empty:
+        raise ValueError(
+            f"No exchange rate found from {from_currency} to {to_currency}"
+        )
+
+    return Decimal(str(available_rates.iloc[-1]))
+
+
+def get_current_price_in_currency(ticker, target_currency):
+    """Convert a stock's current price into the requested currency."""
+    source_currency = get_stock_currency(ticker)
+    target_currency = target_currency.strip().upper()
+
+    current_price = Decimal(str(get_current_price(ticker)))
+    exchange_rate = get_exchange_rate(
+        source_currency,
+        target_currency,
+    )
+
+    converted_price = current_price * exchange_rate
+    return converted_price.quantize(Decimal("0.01"))
 
 def get_stock_details(ticker):
     """Return the ticker, company name, and current price."""

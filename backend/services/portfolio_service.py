@@ -11,6 +11,7 @@ from services.position_service import build_positions_from_transactions
 
 def list_portfolios():
     try:
+        # Open database connection and read every portfolio row
         with get_connection() as connection:
             with connection.cursor(dictionary=True) as cursor:
                 portfolios = portfolio_repository.list_portfolios(cursor)
@@ -21,6 +22,7 @@ def list_portfolios():
 
 
 def create_portfolio(data):
+    # Pull validated request fields from the incoming data
     name = data["name"]
     base_currency = data["base_currency"]
     balance = data.get("balance", 0.00)
@@ -29,6 +31,7 @@ def create_portfolio(data):
         with get_connection() as connection:
             try:
                 with connection.cursor() as cursor:
+                    # Insert the portfolio and commit only if the insert succeeds
                     portfolio_id = portfolio_repository.create_portfolio(
                         cursor,
                         name,
@@ -42,6 +45,7 @@ def create_portfolio(data):
     except mysql.connector.Error as error:
         raise ServiceError(str(error)) from error
 
+    # Return the new portfolio details in the same shape as the API response
     return {
         "id": portfolio_id,
         "name": name.strip(),
@@ -56,6 +60,7 @@ def get_portfolio(portfolio_id):
         with get_connection() as connection:
             try:
                 with connection.cursor(dictionary=True) as cursor:
+                    # Look up one portfolio by its primary key
                     portfolio = portfolio_repository.get_portfolio_by_id(
                         cursor,
                         portfolio_id,
@@ -69,6 +74,7 @@ def get_portfolio(portfolio_id):
     if portfolio is None:
         raise NotFoundError("Portfolio not found")
 
+    # Convert database values into JSON-friendly values before returning
     return serialize_db_row(portfolio)
 
 
@@ -77,12 +83,14 @@ def update_portfolio(portfolio_id, data):
         with get_connection() as connection:
             try:
                 with connection.cursor() as cursor:
+                    # Confirm the portfolio exists before trying to update it
                     if not portfolio_repository.portfolio_exists(
                         cursor,
                         portfolio_id,
                     ):
                         raise NotFoundError("Portfolio not found")
 
+                    # Update the stored portfolio details and save the transaction
                     portfolio_repository.update_portfolio(
                         cursor,
                         portfolio_id,
@@ -97,6 +105,7 @@ def update_portfolio(portfolio_id, data):
     except mysql.connector.Error as error:
         raise ServiceError(str(error)) from error
 
+    # Return the updated values using the same rounding as portfolio creation
     return {
         "id": int(portfolio_id),
         "name": data["name"].strip(),
@@ -113,17 +122,20 @@ def delete_portfolio(portfolio_id):
         with get_connection() as connection:
             try:
                 with connection.cursor(dictionary=True) as cursor:
+                    # Confirm the portfolio exists before trying to delete it
                     if not portfolio_repository.portfolio_exists(
                         cursor,
                         portfolio_id,
                     ):
                         raise NotFoundError("Portfolio not found")
 
+                    # Load transaction history to check whether shares are still owned
                     transactions = holding_repository.list_position_transactions(
                         cursor,
                         portfolio_id,
                     )
                     try:
+                        # Build active positions from all transactions in the portfolio
                         active_positions = build_positions_from_transactions(
                             transactions,
                         )
@@ -135,6 +147,7 @@ def delete_portfolio(portfolio_id):
                             "active positions"
                         )
 
+                    # Delete holdings first so the portfolio can be removed cleanly
                     holding_repository.delete_holdings_for_portfolio(
                         cursor,
                         portfolio_id,

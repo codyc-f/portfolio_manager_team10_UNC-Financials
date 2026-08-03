@@ -9,15 +9,18 @@ from services.errors import BadRequestError, ExternalServiceError
 
 def list_most_active_stocks():
     try:
+        # Load most active stocks from the market data provider
         return get_top_20_stocks()
     except Exception as error:
         raise ExternalServiceError("Unable to load most active stocks") from error
 
 
 def get_stock_price(ticker, currency="USD"):
+    # Clean user input before sending it to the market data provider
     ticker = ticker.strip().upper()
     currency = currency.strip().upper()
 
+    # Reject missing or unreasonably long ticker symbols
     if not ticker or len(ticker) > 20:
         raise BadRequestError("'ticker' must be 1 to 20 characters")
 
@@ -25,6 +28,7 @@ def get_stock_price(ticker, currency="USD"):
         raise BadRequestError("'currency' must be a three-letter currency code")
 
     try:
+        # Load current stock details for the requested ticker
         stock_details = get_stock_details(ticker)
         converted_price = get_current_price_in_currency(ticker, currency)
 
@@ -37,6 +41,7 @@ def get_stock_price(ticker, currency="USD"):
 
 def list_market_news():
     try:
+        # Load latest market news from the market data provider
         return get_market_news()
     except Exception as error:
         raise ExternalServiceError("Unable to load market news") from error

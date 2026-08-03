@@ -20,12 +20,14 @@ def list_holdings(portfolio_id):
     try:
         with get_connection() as connection:
             with connection.cursor(dictionary=True) as cursor:
+                # Confirm the portfolio exists before reading its holdings
                 if not portfolio_repository.portfolio_exists(
                     cursor,
                     portfolio_id,
                 ):
                     raise NotFoundError("Portfolio not found")
 
+                # Load all transaction rows attached to this portfolio
                 holdings = holding_repository.list_holdings_for_portfolio(
                     cursor,
                     portfolio_id,
@@ -33,6 +35,7 @@ def list_holdings(portfolio_id):
     except mysql.connector.Error as error:
         raise ServiceError(str(error)) from error
 
+    # Convert database rows into JSON-friendly values before returning
     return [serialize_db_row(row) for row in holdings]
 
 
@@ -40,12 +43,14 @@ def list_positions(portfolio_id):
     try:
         with get_connection() as connection:
             with connection.cursor(dictionary=True) as cursor:
+                # Confirm the portfolio exists before calculating positions
                 if not portfolio_repository.portfolio_exists(
                     cursor,
                     portfolio_id,
                 ):
                     raise NotFoundError("Portfolio not found")
 
+                # Load transactions because positions are calculated from buys and sells
                 transactions = holding_repository.list_position_transactions(
                     cursor,
                     portfolio_id,
@@ -58,6 +63,7 @@ def list_positions(portfolio_id):
     except ValueError as error:
         raise ConflictError(str(error)) from error
 
+    # Pull current prices for each active ticker so market value can be calculated
     tickers = [position["ticker"] for position in positions_without_prices]
     current_prices = {}
     try:
@@ -69,6 +75,7 @@ def list_positions(portfolio_id):
     positions = build_positions_from_transactions(transactions, current_prices)
     for position in positions:
         try:
+            # Add company logo when the market data provider has one available
             position["logo_url"] = get_company_logo_url(position["ticker"])
         except Exception:
             position["logo_url"] = None
@@ -77,20 +84,23 @@ def list_positions(portfolio_id):
 
 
 def create_holding(data):
+    # Convert numeric request fields to Decimal before doing money calculations
     quantity = Decimal(str(data["quantity"]))
     price_per_unit = Decimal(str(data["price_per_unit"]))
     fee_amount = Decimal(str(data.get("fee_amount", 0.00)))
+    # Trade value is the number of units times the transaction price
     trade_value = quantity * price_per_unit
-    balance_delta = (
-        -(trade_value + fee_amount)
-        if data["trade_type"] == "BUY"
-        else trade_value - fee_amount
-    )
+    # BUY decreases cash balance, SELL increases cash balance after fees
+    if data["trade_type"] == "BUY":
+        balance_delta = -(trade_value + fee_amount)
+    else:
+        balance_delta = trade_value - fee_amount
 
     try:
         with get_connection() as connection:
             try:
                 with connection.cursor(dictionary=True) as cursor:
+                    # Load the portfolio balance so the transaction can update cash
                     portfolio = portfolio_repository.get_portfolio_balance(
                         cursor,
                         data["portfolio_id"],
@@ -98,6 +108,7 @@ def create_holding(data):
                     if portfolio is None:
                         raise NotFoundError("Portfolio not found")
 
+                    # Calculate what the balance will be after this transaction
                     next_balance = portfolio["balance"] + balance_delta
                     if next_balance < 0:
                         raise BadRequestError(
@@ -105,8 +116,10 @@ def create_holding(data):
                         )
 
                     if data["trade_type"] == "SELL":
+                        # Prevent selling more shares than currently owned
                         _ensure_enough_shares_to_sell(cursor, data, quantity)
 
+                    # Save the holding transaction and update portfolio cash together
                     holding_id = holding_repository.create_holding(cursor, data)
                     portfolio_repository.update_portfolio_balance(
                         cursor,
@@ -120,6 +133,7 @@ def create_holding(data):
     except mysql.connector.Error as error:
         raise ServiceError(str(error)) from error
 
+    # Return the holding id and the portfolio balance after the transaction
     return {
         "id": holding_id,
         "portfolio_balance": str(next_balance.quantize(Decimal("0.01"))),
@@ -135,6 +149,7 @@ def get_holding(holding_id):
         with get_connection() as connection:
             try:
                 with connection.cursor(dictionary=True) as cursor:
+                    # Look up one holding transaction by its primary key
                     holding = holding_repository.get_holding_by_id(
                         cursor,
                         holding_id,
@@ -148,6 +163,7 @@ def get_holding(holding_id):
     if holding is None:
         raise NotFoundError("Holding not found")
 
+    # Convert database values into JSON-friendly values before returning
     return serialize_db_row(holding)
 
 
@@ -156,15 +172,18 @@ def update_holding(holding_id, data):
         with get_connection() as connection:
             try:
                 with connection.cursor() as cursor:
+                    # Confirm the holding exists before trying to update it
                     if not holding_repository.holding_exists(cursor, holding_id):
                         raise NotFoundError("Holding not found")
 
+                    # Confirm the target portfolio exists before linking the holding
                     if not portfolio_repository.portfolio_exists(
                         cursor,
                         data["portfolio_id"],
                     ):
                         raise NotFoundError("Portfolio not found")
 
+                    # Save updated holding fields and commit the transaction
                     holding_repository.update_holding(cursor, holding_id, data)
                     connection.commit()
             except mysql.connector.Error as error:
@@ -184,6 +203,7 @@ def delete_holding(holding_id):
         with get_connection() as connection:
             try:
                 with connection.cursor() as cursor:
+                    # Delete the holding row and use the row count to detect missing ids
                     deleted = holding_repository.delete_holding(
                         cursor,
                         holding_id,
@@ -202,26 +222,30 @@ def delete_holding(holding_id):
 
 
 def _ensure_enough_shares_to_sell(cursor, data, quantity):
+    # Load only transactions for the asset being sold
     transactions = holding_repository.list_position_transactions_for_asset(
         cursor,
         data["portfolio_id"],
         data["ticker"],
         data["currency"],
     )
+    # Build the current open position from the asset transaction history
     current_positions = build_positions_from_transactions(transactions)
-    current_position = next(
-        (
-            position for position in current_positions
-            if (
-                position["ticker"] == data["ticker"]
-                and position["currency"] == data["currency"]
-            )
-        ),
-        None,
-    )
-    quantity_owned = (
-        Decimal(str(current_position["quantity_owned"]))
-        if current_position else Decimal("0")
-    )
+    current_position = None
+    for position in current_positions:
+        if (
+            position["ticker"] == data["ticker"]
+            and position["currency"] == data["currency"]
+        ):
+            current_position = position
+            break
+
+    # Treat missing position as zero shares owned
+    if current_position:
+        quantity_owned = Decimal(str(current_position["quantity_owned"]))
+    else:
+        quantity_owned = Decimal("0")
+
+    # Prevent a SELL transaction that would make the position negative
     if quantity_owned < quantity:
         raise BadRequestError("Cannot sell more shares than owned")

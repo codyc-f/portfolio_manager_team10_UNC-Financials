@@ -484,6 +484,24 @@ tbody tr:hover { background: #fbfdfc; }
   color: #899698;
   font-size: 9px;
 }
+.table-footer__action {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid #cfe4ee;
+  border-radius: 7px;
+  color: #2d78a6;
+  background: #edf7fc;
+  font-size: 9px;
+  font-weight: 800;
+}
+.table-footer__action:hover:not(:disabled) {
+  color: #205d83;
+  background: #dff0fa;
+}
+.table-footer__action:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
 .text-button {
   display: flex;
   align-items: center;
@@ -871,6 +889,11 @@ tbody tr:hover { background: #fbfdfc; }
   color: #849294;
   font-size: 10px;
 }
+.transaction-asset {
+  color: #66807d;
+  font-size: 10px;
+  font-weight: 700;
+}
 .transaction-row dl {
   flex: 1;
   display: grid;
@@ -1220,7 +1243,8 @@ html[data-theme="dark"] .transaction-row dd {
   color: #edf6f8;
 }
 html[data-theme="dark"] .transaction-row time,
-html[data-theme="dark"] .transaction-row dt {
+html[data-theme="dark"] .transaction-row dt,
+html[data-theme="dark"] .transaction-asset {
   color: #9fb2b7;
 }
 html[data-theme="dark"] th {
@@ -1241,6 +1265,15 @@ html[data-theme="dark"] .value-cell { color: #edf6f8; }
 html[data-theme="dark"] .asset-cell span,
 html[data-theme="dark"] .table-footer,
 html[data-theme="dark"] .text-button { color: #9fb2b7; }
+html[data-theme="dark"] .table-footer__action {
+  color: #9dd3f3;
+  background: #123547;
+  border-color: #23536a;
+}
+html[data-theme="dark"] .table-footer__action:hover:not(:disabled) {
+  color: #cae8f8;
+  background: #18435a;
+}
 html[data-theme="dark"] .type-pill {
   color: #c5d5d8;
   background: #203941;

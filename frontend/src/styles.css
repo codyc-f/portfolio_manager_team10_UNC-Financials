@@ -409,11 +409,14 @@ tbody tr:hover { background: #fbfdfc; }
   outline-offset: -3px;
 }
 .asset-cell { min-width: 190px; display: flex; align-items: center; gap: 10px; }
-.asset-badge {
+.asset-badge,
+.asset-logo {
   width: 34px;
   height: 34px;
+  flex: 0 0 34px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   color: #356f95;
   background: #e9f2f8;
   border-radius: 9px;
@@ -686,6 +689,7 @@ tbody tr:hover { background: #fbfdfc; }
   font-size: 9px;
   font-weight: 700;
 }
+.asset-logo img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .section-heading > button:disabled { cursor: not-allowed; opacity: .6; }
 .news-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
 .news-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfc; }
@@ -766,6 +770,7 @@ tbody tr:hover { background: #fbfdfc; }
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
   padding: 24px 26px 18px;
   border-bottom: 1px solid var(--line);
 }
@@ -773,6 +778,17 @@ tbody tr:hover { background: #fbfdfc; }
 .modal-header p { margin: 0; color: #78898b; font-size: 10px; }
 .modal-kicker { color: #2d78a6; font-size: 8px; font-weight: 700; letter-spacing: .12em; }
 .modal-header > button { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; color: #6e8082; background: #f3f6f5; border-radius: 7px; }
+.modal-header__copy { flex: 1; min-width: 0; }
+.modal-header__context {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 8px 11px;
+  background: #edf5fa;
+  border-radius: 7px;
+  text-align: right;
+}
+.modal-header__context span { display: block; color: #66807d; font-size: 8px; font-weight: 700; }
+.modal-header__context strong { display: block; margin-top: 2px; color: #2b709a; font: 700 11px "Manrope", sans-serif; }
 .modal form { padding: 22px 26px 24px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-grid label > span:first-child { display: block; margin-bottom: 7px; color: #43585b; font-size: 9px; font-weight: 700; }
@@ -801,6 +817,27 @@ tbody tr:hover { background: #fbfdfc; }
 .input-prefix { position: relative; }
 .input-prefix > span { position: absolute; left: 11px; top: 11px; color: #839193; font-size: 11px; }
 .input-prefix input { padding-left: 24px; }
+.input-prefix--currency input { padding-left: 44px; }
+.currency-display > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #43585b;
+  font-size: 9px;
+  font-weight: 700;
+}
+.currency-display > div {
+  height: 39px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 11px;
+  color: #263b3f;
+  background: #f3f6f5;
+  border: 1px solid #d8e2e0;
+  border-radius: 7px;
+}
+.currency-display strong { font-size: 11px; }
+.currency-display small { color: #839193; font-size: 9px; }
 .trade-summary { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding: 13px 15px; background: #edf5fa; border-radius: 8px; }
 .trade-summary span { color: #66807d; font-size: 9px; font-weight: 600; }
 .trade-summary strong { color: #2b709a; font: 700 13px "Manrope", sans-serif; }
@@ -1138,7 +1175,11 @@ html[data-theme="dark"] .modal-header > button {
   color: #c5d5d8;
   background: #1b3740;
 }
+html[data-theme="dark"] .modal-header__context { background: #102f3b; }
+html[data-theme="dark"] .modal-header__context span { color: #b2c5c9; }
+html[data-theme="dark"] .modal-header__context strong { color: #9dd3f3; }
 html[data-theme="dark"] .form-grid label > span:first-child,
+html[data-theme="dark"] .currency-display > span,
 html[data-theme="dark"] .portfolio-form > label > span {
   color: #c5d5d8;
   font-size: 10px;
@@ -1151,6 +1192,12 @@ html[data-theme="dark"] .form-grid select {
   background: #0d2027;
   font-size: 11px;
 }
+html[data-theme="dark"] .currency-display > div {
+  color: #edf6f8;
+  background: #0d2027;
+  border-color: var(--line);
+}
+html[data-theme="dark"] .currency-display small { color: #a9bbc0; }
 html[data-theme="dark"] input::placeholder,
 html[data-theme="dark"] .search-field input::placeholder { color: #82999f; }
 html[data-theme="dark"] .input-prefix > span { color: #a9bbc0; }

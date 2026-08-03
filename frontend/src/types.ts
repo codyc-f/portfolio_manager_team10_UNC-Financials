@@ -36,6 +36,7 @@ export interface Position {
   ticker: string;
   assetName: string;
   assetType: AssetType;
+  logoUrl: string | null;
   currency: string;
   quantityOwned: number;
   averageCost: number;

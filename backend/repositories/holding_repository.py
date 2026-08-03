@@ -173,3 +173,8 @@ def update_holding(cursor, holding_id, data):
 def delete_holding(cursor, holding_id):
     cursor.execute("DELETE FROM HOLDING WHERE id = %s", (holding_id,))
     return cursor.rowcount > 0
+
+
+def delete_holdings_for_portfolio(cursor, portfolio_id):
+    cursor.execute("DELETE FROM HOLDING WHERE portfolio_id = %s", (portfolio_id,))
+    return cursor.rowcount

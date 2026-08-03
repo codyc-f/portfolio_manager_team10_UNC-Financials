@@ -941,7 +941,7 @@ export default function App() {
       {deletingPortfolio && (
         <ConfirmModal
           title={`Delete ${deletingPortfolio.name}?`}
-          description="A portfolio can only be deleted after all of its holding transactions have been removed."
+          description="A portfolio can only be deleted after all of its positions have been fully sold."
           cancelLabel="Keep portfolio"
           confirmLabel="Delete portfolio"
           submitting={submitting}

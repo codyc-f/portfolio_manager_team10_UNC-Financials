@@ -184,9 +184,10 @@ Successful response (`200 OK`):
 }
 ```
 
-The endpoint returns `404 Not Found` if the portfolio does not exist. A
-portfolio referenced by a holding cannot be deleted until its holdings are
-deleted because `HOLDING.portfolio_id` is a foreign key.
+The endpoint returns `404 Not Found` if the portfolio does not exist and
+`409 Conflict` if the portfolio still has active positions. Once every position
+has been fully sold, deleting the portfolio also removes its holding transaction
+history because `HOLDING.portfolio_id` is a foreign key.
 
 ### List active positions
 

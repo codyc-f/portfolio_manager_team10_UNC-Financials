@@ -6,6 +6,7 @@ from db import get_connection
 from repositories import holding_repository, portfolio_repository
 from serializers import serialize_db_row
 from services.errors import ConflictError, NotFoundError, ServiceError
+from services.position_service import build_positions_from_transactions
 
 
 def list_portfolios():
@@ -111,17 +112,34 @@ def delete_portfolio(portfolio_id):
     try:
         with get_connection() as connection:
             try:
-                with connection.cursor() as cursor:
-                    if holding_repository.portfolio_has_holdings(
+                with connection.cursor(dictionary=True) as cursor:
+                    if not portfolio_repository.portfolio_exists(
                         cursor,
                         portfolio_id,
                     ):
+                        raise NotFoundError("Portfolio not found")
+
+                    transactions = holding_repository.list_position_transactions(
+                        cursor,
+                        portfolio_id,
+                    )
+                    try:
+                        active_positions = build_positions_from_transactions(
+                            transactions,
+                        )
+                    except ValueError as error:
+                        raise ConflictError(str(error)) from error
+                    if active_positions:
                         raise ConflictError(
                             "Portfolio cannot be deleted while it contains "
-                            "holding transactions"
+                            "active positions"
                         )
 
-                    deleted = portfolio_repository.delete_portfolio(
+                    holding_repository.delete_holdings_for_portfolio(
+                        cursor,
+                        portfolio_id,
+                    )
+                    portfolio_repository.delete_portfolio(
                         cursor,
                         portfolio_id,
                     )
@@ -131,9 +149,6 @@ def delete_portfolio(portfolio_id):
                 raise ServiceError(str(error)) from error
     except mysql.connector.Error as error:
         raise ServiceError(str(error)) from error
-
-    if not deleted:
-        raise NotFoundError("Portfolio not found")
 
     return {
         "message": f"Successfully deleted portfolio with id {portfolio_id}"

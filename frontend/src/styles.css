@@ -403,6 +403,11 @@ td {
 }
 tbody tr { transition: .15s ease; }
 tbody tr:hover { background: #fbfdfc; }
+.clickable-row { cursor: pointer; }
+.clickable-row:focus-visible {
+  outline: 3px solid rgba(75,156,211,.25);
+  outline-offset: -3px;
+}
 .asset-cell { min-width: 190px; display: flex; align-items: center; gap: 10px; }
 .asset-badge {
   width: 34px;
@@ -782,6 +787,13 @@ tbody tr:hover { background: #fbfdfc; }
   font-size: 11px;
 }
 .form-grid input::placeholder { color: #a1acad; }
+.field-note {
+  display: block;
+  margin-top: 6px;
+  color: #6d8386;
+  font-size: 9px;
+  font-weight: 700;
+}
 .form-span { grid-column: 1 / -1; }
 .segmented-control { display: grid; grid-template-columns: 1fr 1fr; height: 39px; padding: 3px; background: #f1f5f4; border-radius: 7px; }
 .segmented-control button { display: flex; align-items: center; justify-content: center; gap: 5px; border: 0; color: #6f8082; background: transparent; border-radius: 5px; font-size: 10px; font-weight: 700; }
@@ -793,6 +805,56 @@ tbody tr:hover { background: #fbfdfc; }
 .trade-summary span { color: #66807d; font-size: 9px; font-weight: 600; }
 .trade-summary strong { color: #2b709a; font: 700 13px "Manrope", sans-serif; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.transaction-modal { width: min(680px, 100%); }
+.transaction-list {
+  display: grid;
+  gap: 10px;
+  padding: 18px 26px 24px;
+}
+.transaction-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+.transaction-row > div:first-child {
+  min-width: 180px;
+  display: grid;
+  gap: 5px;
+}
+.transaction-row strong {
+  color: #203438;
+  font-size: 14px;
+}
+.transaction-row time {
+  color: #849294;
+  font-size: 10px;
+}
+.transaction-row dl {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(80px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.transaction-row dt {
+  margin-bottom: 4px;
+  color: #849294;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.transaction-row dd {
+  margin: 0;
+  color: #2b3d40;
+  font-size: 11px;
+  font-weight: 700;
+}
 .secondary-button, .danger-button {
   height: 40px;
   padding: 0 15px;
@@ -1081,6 +1143,7 @@ html[data-theme="dark"] .portfolio-form > label > span {
   color: #c5d5d8;
   font-size: 10px;
 }
+html[data-theme="dark"] .field-note { color: #a9bbc0; }
 html[data-theme="dark"] .portfolio-form input,
 html[data-theme="dark"] .form-grid input,
 html[data-theme="dark"] .form-grid select {
@@ -1101,6 +1164,18 @@ html[data-theme="dark"] .segmented-control button.selected {
 html[data-theme="dark"] .trade-summary { background: #102f3b; }
 html[data-theme="dark"] .trade-summary span { color: #b2c5c9; font-size: 10px; }
 html[data-theme="dark"] .trade-summary strong { color: #9dd3f3; }
+html[data-theme="dark"] .transaction-row {
+  border-color: var(--line);
+  background: #0d2027;
+}
+html[data-theme="dark"] .transaction-row strong,
+html[data-theme="dark"] .transaction-row dd {
+  color: #edf6f8;
+}
+html[data-theme="dark"] .transaction-row time,
+html[data-theme="dark"] .transaction-row dt {
+  color: #9fb2b7;
+}
 html[data-theme="dark"] th {
   color: #b9c9cd;
   background: #0d2027;
@@ -1113,6 +1188,7 @@ html[data-theme="dark"] td {
   font-size: 11px;
 }
 html[data-theme="dark"] tbody tr:hover { background: #152d35; }
+html[data-theme="dark"] .clickable-row:focus-visible { outline-color: rgba(157,211,243,.32); }
 html[data-theme="dark"] .asset-cell strong,
 html[data-theme="dark"] .value-cell { color: #edf6f8; }
 html[data-theme="dark"] .asset-cell span,
@@ -1208,6 +1284,13 @@ html[data-theme="dark"] .delete-icon {
   .section-heading { align-items: flex-start; }
   .section-heading > div { align-items: flex-start; }
   .form-grid { grid-template-columns: 1fr; }
+  .transaction-list { padding: 16px 19px 21px; }
+  .transaction-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .transaction-row dl { grid-template-columns: repeat(3, 1fr); }
   .form-span { grid-column: auto; }
   .modal-header, .modal form { padding-left: 19px; padding-right: 19px; }
   .onboarding-card { padding: 26px 20px; }

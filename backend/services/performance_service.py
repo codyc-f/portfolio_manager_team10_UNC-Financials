@@ -16,7 +16,12 @@ from services.position_service import build_positions_from_transactions
 
 
 def get_portfolio_performance(portfolio_id):
-    """Return one month of market value for the portfolio's current positions."""
+    """Return one month of market value for the portfolio's current positions.
+
+    This is needed so the API can build a portfolio performance chart from the
+    active holdings and historical close prices. It is used by the
+    GET /api/portfolios/<portfolio_id>/performance endpoint in app.py.
+    """
     try:
         with get_connection() as connection:
             with connection.cursor(dictionary=True) as cursor:

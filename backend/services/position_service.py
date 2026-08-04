@@ -4,7 +4,12 @@ from serializers import decimal_to_json_number
 
 
 def build_positions_from_transactions(transactions, current_prices=None):
-    """Build active positions from transaction rows using average cost basis."""
+    """Build active positions from transaction rows using average cost basis.
+
+    This is needed because positions are not stored directly in the database.
+    It is used by holding_service, portfolio_service, and performance_service
+    whenever they need current shares owned, cost basis, or unrealized gain.
+    """
     current_prices = current_prices or {}
     # Map to hold running position state, keyed by unique (ticker, currency) pairs
     positions = {}

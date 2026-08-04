@@ -10,6 +10,11 @@ from services.position_service import build_positions_from_transactions
 
 
 def list_portfolios():
+    """Return every portfolio saved in the database.
+
+    This is needed so the API can show the user's portfolio list. It is used by
+    the GET /api/portfolios endpoint in app.py.
+    """
     try:
         # Open database connection and read every portfolio row
         with get_connection() as connection:
@@ -22,6 +27,11 @@ def list_portfolios():
 
 
 def create_portfolio(data):
+    """Create a new portfolio record.
+
+    This is needed so users can start tracking cash and holdings under a
+    portfolio. It is used by the POST /api/portfolios endpoint in app.py.
+    """
     # Pull validated request fields from the incoming data
     name = data["name"]
     base_currency = data["base_currency"]
@@ -56,6 +66,11 @@ def create_portfolio(data):
 
 
 def get_portfolio(portfolio_id):
+    """Return one portfolio by id.
+
+    This is needed so the API can show details for a specific portfolio. It is
+    used by the GET /api/portfolios/<portfolio_id> endpoint in app.py.
+    """
     try:
         with get_connection() as connection:
             try:
@@ -79,6 +94,12 @@ def get_portfolio(portfolio_id):
 
 
 def update_portfolio(portfolio_id, data):
+    """Update one existing portfolio.
+
+    This is needed so portfolio details like name, base currency, or balance can
+    be corrected. It is used by the PUT /api/portfolios/<portfolio_id> endpoint
+    in app.py.
+    """
     try:
         with get_connection() as connection:
             try:
@@ -118,6 +139,12 @@ def update_portfolio(portfolio_id, data):
 
 
 def delete_portfolio(portfolio_id):
+    """Delete a portfolio when it has no active positions.
+
+    This is needed so empty portfolios can be removed without deleting shares
+    that are still owned. It is used by the DELETE /api/portfolios/<portfolio_id>
+    endpoint in app.py.
+    """
     try:
         with get_connection() as connection:
             try:

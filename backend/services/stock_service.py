@@ -8,6 +8,11 @@ from services.errors import BadRequestError, ExternalServiceError
 
 
 def list_most_active_stocks():
+    """Return the most active stocks from the market data provider.
+
+    This is needed so the API can show popular stocks users may want to inspect.
+    It is used by the GET /api/stocks/most-active endpoint in app.py.
+    """
     try:
         # Load most active stocks from the market data provider
         return get_top_20_stocks()
@@ -16,6 +21,12 @@ def list_most_active_stocks():
 
 
 def get_stock_price(ticker, currency="USD"):
+    """Return stock details and current price for one ticker and currency.
+
+    This is needed so the API can show a ticker's latest market data before a
+    user records a trade. It is used by the GET /api/stocks/<ticker>/price
+    endpoint in app.py.
+    """
     # Clean user input before sending it to the market data provider
     ticker = ticker.strip().upper()
     currency = currency.strip().upper()
@@ -39,7 +50,13 @@ def get_stock_price(ticker, currency="USD"):
     except Exception as error:
         raise ExternalServiceError(str(error)) from error
 
+
 def list_market_news():
+    """Return recent general market news.
+
+    This is needed so the API can show market headlines in the app. It is used
+    by the GET /api/stocks/news endpoint in app.py.
+    """
     try:
         # Load latest market news from the market data provider
         return get_market_news()

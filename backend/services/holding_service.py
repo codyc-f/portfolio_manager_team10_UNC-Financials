@@ -17,6 +17,11 @@ from services.position_service import build_positions_from_transactions
 
 
 def list_holdings(portfolio_id):
+    """Return all holding transaction rows for one portfolio.
+
+    This is needed so the API can show the raw BUY and SELL history for a
+    portfolio. It is used by the GET /api/holdings endpoint in app.py.
+    """
     try:
         with get_connection() as connection:
             with connection.cursor(dictionary=True) as cursor:
@@ -40,6 +45,12 @@ def list_holdings(portfolio_id):
 
 
 def list_positions(portfolio_id):
+    """Return active positions calculated from holding transactions.
+
+    This is needed because the database stores transaction rows, not a live
+    position table. It is used by the GET /api/portfolios/<portfolio_id>/positions
+    endpoint in app.py.
+    """
     try:
         with get_connection() as connection:
             with connection.cursor(dictionary=True) as cursor:
@@ -84,6 +95,11 @@ def list_positions(portfolio_id):
 
 
 def create_holding(data):
+    """Create one BUY or SELL holding transaction and update portfolio cash.
+
+    This is needed so every trade is saved while keeping the portfolio balance
+    in sync. It is used by the POST /api/holdings endpoint in app.py.
+    """
     # Convert numeric request fields to Decimal before doing money calculations
     quantity = Decimal(str(data["quantity"]))
     price_per_unit = Decimal(str(data["price_per_unit"]))
@@ -145,6 +161,11 @@ def create_holding(data):
 
 
 def get_holding(holding_id):
+    """Return one holding transaction by id.
+
+    This is needed so the API can show the details for a single transaction.
+    It is used by the GET /api/holdings/<holding_id> endpoint in app.py.
+    """
     try:
         with get_connection() as connection:
             try:
@@ -168,6 +189,11 @@ def get_holding(holding_id):
 
 
 def update_holding(holding_id, data):
+    """Update one existing holding transaction.
+
+    This is needed so transaction details can be corrected after creation.
+    It is used by the PUT /api/holdings/<holding_id> endpoint in app.py.
+    """
     try:
         with get_connection() as connection:
             try:
@@ -199,6 +225,12 @@ def update_holding(holding_id, data):
 
 
 def delete_holding(holding_id):
+    """Delete one holding transaction by id.
+
+    This is needed so an incorrect transaction can be removed from the
+    portfolio history. It is used by the DELETE /api/holdings/<holding_id>
+    endpoint in app.py.
+    """
     try:
         with get_connection() as connection:
             try:
@@ -222,6 +254,11 @@ def delete_holding(holding_id):
 
 
 def _ensure_enough_shares_to_sell(cursor, data, quantity):
+    """Stop a SELL transaction when the portfolio does not own enough shares.
+
+    This is needed to prevent negative positions. It is used only inside
+    create_holding before a SELL transaction is saved.
+    """
     # Load only transactions for the asset being sold
     transactions = holding_repository.list_position_transactions_for_asset(
         cursor,

@@ -3,7 +3,7 @@ from decimal import Decimal
 import mysql.connector
 
 from db import get_connection
-from market_data import get_company_logo_url, get_current_price
+from market_data import get_company_logo_url, get_current_price_in_currency
 from repositories import holding_repository, portfolio_repository
 from serializers import serialize_db_row
 from services.errors import (
@@ -74,12 +74,18 @@ def list_positions(portfolio_id):
     except ValueError as error:
         raise ConflictError(str(error)) from error
 
-    # Pull current prices for each active ticker so market value can be calculated
-    tickers = [position["ticker"] for position in positions_without_prices]
+    # Pull current prices in each position currency so displayed values and labels match.
+    position_keys = [
+        (position["ticker"], position["currency"])
+        for position in positions_without_prices
+    ]
     current_prices = {}
     try:
-        for ticker in tickers:
-            current_prices[ticker] = get_current_price(ticker)
+        for ticker, currency in position_keys:
+            current_prices[(ticker, currency)] = get_current_price_in_currency(
+                ticker,
+                currency,
+            )
     except Exception as error:
         raise ExternalServiceError(str(error)) from error
 

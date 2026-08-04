@@ -76,7 +76,10 @@ def build_positions_from_transactions(transactions, current_prices=None):
         # Calculate average cost for the shares still currently owned
         cost_basis = position["cost_basis"]
         average_cost = cost_basis / quantity_owned
-        current_price = current_prices.get(position["ticker"])
+        current_price = current_prices.get(
+            (position["ticker"], position["currency"]),
+            current_prices.get(position["ticker"]),
+        )
         market_value = None
         unrealized_gain = None
         unrealized_gain_percent = None

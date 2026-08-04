@@ -50,6 +50,62 @@ transactions and view positions/performance.
 - Swagger API documentation
 - Pytest unit, route, and integration tests
 
+## Enhancement Highlights
+
+### UI and User Experience
+
+- The React interface uses tab-style page navigation for Holdings, Allocation,
+  and Performance so users can move between major workflows without scrolling
+  through one long page.
+- Portfolio positions refresh automatically every 30 seconds while a portfolio
+  is selected, keeping current prices, market value, and unrealized gain updated
+  after trades and market-data changes.
+- Allocation and performance views include graphics-based charts: a native SVG
+  doughnut chart for portfolio allocation and a native SVG line chart for
+  one-month portfolio value. The UI also uses the `lucide-react` graphics/icon
+  package for buttons, navigation, empty states, and dashboard cards.
+- Tables include search, asset filtering, empty states, loading states, and
+  transaction-history access to reduce unnecessary scrolling and improve daily
+  portfolio review.
+
+### Portfolio Features
+
+- Stock lookup, current prices, logos, historical prices, most-active stocks,
+  and recent stock-market news are pulled from Yahoo Finance through the
+  backend `yfinance` integration.
+- The Performance page includes a news feed from `GET /api/stocks/news`, which
+  returns recent market articles with publisher, title, summary, image, and
+  original article URL.
+- Portfolio valuation supports base-currency workflows. Stock price lookup and
+  holdings valuation use currency conversion so displayed prices and labels
+  match the portfolio currency.
+
+### Configuration
+
+- Database settings are not hard coded inside application logic. The backend
+  reads `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and
+  `MYSQL_DATABASE` from environment variables in `backend/db.py` and
+  `backend/table_initializer.py`.
+- `docker-compose.yml` supplies local development defaults for those variables,
+  while tests can override them, for example with
+  `MYSQL_DATABASE=portfolio_manager_test`.
+
+### Development Methodology
+
+- Work can be tracked with GitHub Issues by creating one issue per feature,
+  bug, or documentation task, then referencing the issue number in commits and
+  pull requests.
+- The test suite supports the development workflow with unit tests for service
+  logic and validators, route tests for REST behavior, and optional MySQL
+  integration tests.
+
+### REST and API Documentation
+
+- The Flask backend exposes REST-style JSON endpoints for portfolios, holdings,
+  positions, performance, stock lookup, most-active stocks, and news.
+- Swagger documentation is enabled through `flasgger` and is available locally
+  at `http://localhost:5001/apidocs/` after the API container starts.
+
 ## How The App Connects
 
 1. React calls API routes such as `GET /api/holdings?portfolio_id=1`.

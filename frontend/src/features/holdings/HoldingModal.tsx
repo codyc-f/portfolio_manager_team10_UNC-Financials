@@ -1,4 +1,4 @@
-import { Check, ChevronDown, LoaderCircle, Search, X } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, LoaderCircle, Search, X } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { FormError } from "../../components/common/FormError";
@@ -24,6 +24,7 @@ interface HoldingModalProps {
 export function HoldingModal({ draft, setDraft, positions, stockOptions, stockOptionsError, availableCash, editing, submitting, error, close, onSubmit }: HoldingModalProps) {
   const [tickerQuery, setTickerQuery] = useState(draft.ticker);
   const [tickerDropdownOpen, setTickerDropdownOpen] = useState(false);
+  const [tickerLookupError, setTickerLookupError] = useState("");
   const filteredStockOptions = useMemo(() => {
     const query = tickerQuery.trim().toLowerCase();
     if (!query) return stockOptions;
@@ -35,10 +36,12 @@ export function HoldingModal({ draft, setDraft, positions, stockOptions, stockOp
       const stock = await api.getStockDetails(ticker, draft.currency);
       setTickerQuery(stock.ticker);
       setDraft({ ...draft, ticker: stock.ticker, assetName: stock.name, assetType: "Stock", pricePerUnit: roundPrice(stock.currentPrice), currency: draft.currency });
+      setTickerLookupError("");
       setTickerDropdownOpen(false);
     } catch (error) {
       console.error("Unable to find ticker:", error);
-      window.alert(`No stock information was found for ${ticker}.`);
+      setTickerLookupError(`No stock information was found for ${ticker}.`);
+      setTickerDropdownOpen(false);
     }
   }
 
@@ -68,11 +71,12 @@ export function HoldingModal({ draft, setDraft, positions, stockOptions, stockOp
               <div className="ticker-combobox" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setTickerDropdownOpen(false); }}>
                 <div className="ticker-search">
                   <Search size={17} />
-                  <input id="ticker-search" type="text" value={tickerQuery} placeholder={stockOptions.length ? "Search ticker or company" : "Loading tickers..."} autoComplete="off" required role="combobox" aria-expanded={tickerDropdownOpen} aria-controls="ticker-options" onClick={() => setTickerDropdownOpen(true)} onFocus={() => setTickerDropdownOpen(true)} onChange={(event) => { const value = event.target.value; setTickerQuery(value); setTickerDropdownOpen(true); setDraft({ ...draft, ticker: "", assetName: "", pricePerUnit: 0 }); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchTicker(); } if (event.key === "Escape") setTickerDropdownOpen(false); }} />
+                  <input id="ticker-search" type="text" value={tickerQuery} placeholder={stockOptions.length ? "Search ticker or company" : "Loading tickers..."} autoComplete="off" required role="combobox" aria-expanded={tickerDropdownOpen} aria-controls="ticker-options" aria-invalid={Boolean(tickerLookupError)} aria-describedby={tickerLookupError ? "ticker-lookup-error" : undefined} onClick={() => setTickerDropdownOpen(true)} onFocus={() => setTickerDropdownOpen(true)} onChange={(event) => { const value = event.target.value; setTickerQuery(value); setTickerLookupError(""); setTickerDropdownOpen(true); setDraft({ ...draft, ticker: "", assetName: "", pricePerUnit: 0 }); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchTicker(); } if (event.key === "Escape") setTickerDropdownOpen(false); }} />
                   <ChevronDown className={tickerDropdownOpen ? "ticker-chevron--open" : ""} size={17} />
                 </div>
                 {tickerDropdownOpen && <div className="ticker-options" id="ticker-options" role="listbox">{filteredStockOptions.length > 0 ? filteredStockOptions.map((stock) => <button key={stock.ticker} type="button" className="ticker-option" onMouseDown={(event) => { event.preventDefault(); void selectTicker(stock.ticker); }}><strong>{stock.ticker}</strong><span>{stock.name}</span></button>) : <div className="ticker-options__empty">No matching stocks found</div>}</div>}
               </div>
+              {tickerLookupError && <div className="ticker-feedback" id="ticker-lookup-error" role="status"><AlertCircle size={14} /><span>{tickerLookupError}</span></div>}
             </div>
             <Field label="Asset name"><input value={draft.assetName} onChange={(event) => setDraft({ ...draft, assetName: event.target.value })} placeholder="e.g. Apple Inc." maxLength={255} required /></Field>
             <Field label="Asset type"><select value={draft.assetType} onChange={(event) => setDraft({ ...draft, assetType: event.target.value as AssetType })}>{assetTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
